@@ -1,0 +1,54 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Virtual Environments
+venv/
+env/
+ENV/
+.env/
+.venv/
+
+# Environment variables / secrets
+.env
+.env.*
+.env.local
+instance/
+secrets.toml
+
+# Database local files
+*.sqlite3
+*.db
+
+# Logs and temporary files
+logs/
+*.log
+
+# IDE and Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+.vs/
+
+# VS Code & System files
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Testing & Code Quality Caches
+.pytest_cache/
+.htmlcov/
+.coverage
+.coverage.*
+.ruff_cache/
+.mypy_cache/
+
+# Web Framework Specific files
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
