@@ -3,9 +3,13 @@ import pandas as pd
 import numpy as np
 import os
 import re
+import sys
+import argparse
 import warnings
+from pandas.errors import EmptyDataError
 from pandas.io.formats.style import Styler
 from datetime import datetime
+from pathlib import Path
 
 # Set Display Options for Pandas
 pd.set_option('display.max_columns', None)
@@ -16,32 +20,144 @@ pd.options.display.width = 0
 # suppress warnings from SQL queries
 warnings.simplefilter(action='ignore', category=UserWarning)
 
-RUN_MODE = "PRODUCTION"
+RUN_MODE = "PROD"
+
+# To run OperGrid for a different module, change the module selection below in the else block.
+# Must be one of the toolset labels configured in the Toolset clas toolset_selection variable
+# Currently configured for ["BUR", "KNST", "XST", "XRT"]
+
+if len(sys.argv) > 1:
+    module_selection = sys.argv[1]
+    print(f"Setting Module Selection: {module_selection}")
+else:
+    module_selection = "XST"
+    print(f"Setting Default Module Selection: {module_selection}")
+
+
+class Toolset:
+    def __init__(self, toolset):
+        self.toolset = toolset
+        self.toolset_selection = ["BUR", "KNST", "XST", "XRT"]
+        self.model_map = {}
+        self.path_variables = {}
+
+        match toolset:
+            case "BUR":
+                self.min_chamber_check = 2
+            case "KNST":
+                self.min_chamber_check = 6
+            case "XST":
+                self.min_chamber_check = 2
+            case "XRT":
+                self.min_chamber_check = 4
+            case _:
+                self.min_chamber_check = 6
+
+    def get_model_map(self):
+        if self.toolset not in self.toolset_selection:
+            print(f"Invalid Toolset: {self.toolset} not in {self.toolset_selection}")
+        elif self.toolset == "BUR":
+            self.model_map = {
+                'BURcu': 'BUR_CU_F3'
+            }
+        elif self.toolset == "KNST":
+            self.model_map = {
+                'NSTwa': 'NST_F3',
+                'NSTwn': 'NST_WN_F3',
+                'KSTwa': 'KST_F3',
+                'NSTsc': 'NST_SC_F3'
+            }
+        elif self.toolset == "XST":
+            self.model_map = {
+                'SST': 'SST_F3',
+                'EST': 'EST_F3',
+                'GST': 'GST_F3_SCNET',
+                'EST53': 'EST_F3_SCNET_NSD'
+            }
+        elif self.toolset == "XRT":
+            self.model_map = {
+                'DRTnb': 'DRT_FE_BV_F3',
+                'DRTnc': 'DRT_FE_F3',
+                'DRTcb': 'DRT_BE_BV_F3',
+                'DRTcu': 'DRT_BE_F3'
+            }
+        else:
+            print(f"Invalid Toolset")
+
+    def get_path_variables(self):
+        self.path_variables.update({
+                "bootstrap_css":
+                    "https://azshweb.intel.com/AZAnalysis$/1274_MAODATA/Config/wet_etch/KNST/configs/Bootstrap/bootstrap5_dist/css/bootstrap.min.css",
+                "bootstrap_js":
+                    "https://azshweb.intel.com/AZAnalysis$/1274_MAODATA/Config/wet_etch/KNST/configs/Bootstrap/bootstrap5_dist/js/bootstrap.bundle.js",
+                "datatables_dir":
+                    "https://azshweb.intel.com/AZAnalysis$/1274_MAODATA/Config/wet_etch/KNST/configs/DataTables_Plugin/"
+            })
+        if self.toolset not in self.toolset_selection:
+            print(f"Invalid Toolset: {self.toolset} not in {self.toolset_selection}")
+        elif self.toolset == "BUR":
+            self.path_variables.update({
+                "output_dir": Path(
+                    "//azshfs.intel.com/AZAnalysis$/1278_MAODATA/Wet_Etch/BUR/Script_Output/xRT_BUR_Oper_Grid"),
+                "html_output_dir": Path(
+                    "//azshfs.intel.com/AZAnalysis$/1278_MAODATA/Wet_Etch/BUR/Script_Output/xRT_BUR_Oper_Grid/Output_HTML"),
+                "html_out_file": Path(
+                    "https://azshweb.intel.com/AZAnalysis$/1278_MAODATA/Wet_Etch/BUR/Script_Output/xRT_BUR_Oper_Grid/Output_HTML")
+            })
+        elif self.toolset == "KNST":
+            self.path_variables.update({
+                "output_dir": Path("//AZSHFS.intel.com/AZAnalysis$/1274_MAODATA/wet_etch/KNST/Script Output/OperGrid"),
+                "html_output_dir": Path(
+                    "//AZSHFS.intel.com/AZAnalysis$/1274_MAODATA/wet_etch/KNST/Script Output/OperGrid/Output_HTML"),
+                "html_out_file": Path(
+                    "https://azshweb.intel.com/AZAnalysis$/1274_MAODATA/wet_etch/KNST/Script Output/OperGrid/Output_HTML")
+            })
+        elif self.toolset == "XST":
+            self.path_variables.update({
+                "output_dir": Path(
+                    "//AZSHFS.intel.com/AZAnalysis$/1274_MAODATA/wet_etch/EST_SST/Script Output/OperGrid"),
+                "html_output_dir": Path(
+                    "//AZSHFS.intel.com/AZAnalysis$/1274_MAODATA/wet_etch/EST_SST/Script Output/OperGrid/Output_HTML"),
+                "html_out_file": Path(
+                    "https://azshweb.intel.com/AZAnalysis$/1274_MAODATA/wet_etch/EST_SST/Script Output/OperGrid/Output_HTML")
+            })
+        elif self.toolset == "XRT":
+            self.path_variables.update({
+                "output_dir": Path(
+                    "//azshfs.intel.com/AZAnalysis$/1278_MAODATA/Wet_Etch/BUR/Script_Output/xRT_BUR_Oper_Grid"),
+                "html_output_dir": Path(
+                    "//azshfs.intel.com/AZAnalysis$/1278_MAODATA/Wet_Etch/BUR/Script_Output/xRT_BUR_Oper_Grid/Output_HTML"),
+                "html_out_file": Path(
+                    "https://azshweb.intel.com/AZAnalysis$/1278_MAODATA/Wet_Etch/BUR/Script_Output/xRT_BUR_Oper_Grid/Output_HTML")
+            })
+        else:
+            print(f"Invalid Toolset")
+
+
+toolset = Toolset(module_selection)
+toolset.get_model_map()
+toolset.get_path_variables()
 
 # Create path variables for testing / debugging
-if RUN_MODE == "DEVELOPMENT":
-    out_path = "\\\\AZSHFS.intel.com\\AZAnalysis$\\1274_MAODATA\\Config\\wet_etch\\KNST\\configs\\OperGrid\\Testing\\"
-    output_dir = r"//AZSHFS.intel.com/AZAnalysis$/1274_MAODATA/wet_etch/KNST/Script Output/OperGrid/Testing/"
-    html_output_dir = r"//AZSHFS.intel.com/AZAnalysis$/1274_MAODATA/wet_etch/KNST/Script Output/OperGrid/Testing/Output_HTML/"
-    html_out_file = "https://azshweb.intel.com/AZAnalysis$/1274_MAODATA/wet_etch/KNST/Script Output/OperGrid/Testing/Output_HTML/"
+if RUN_MODE == "DEBUG":
+    out_path = Path("C:/Users/vlondagi/source/repos/SCREEN_Oper_Grid/Script_Output")
+    output_dir = Path("C:/Users/vlondagi/source/repos/SCREEN_Oper_Grid/Script_Output")
+    html_output_dir = Path("C:/Users/vlondagi/source/repos/SCREEN_Oper_Grid/Script_Output/Output_HTML")
+    html_out_file = Path("C:/Users/vlondagi/source/repos/SCREEN_Oper_Grid/Script_Output/Output_HTML")
+    bootstrap_css = Path("C:/Users/vlondagi/source/repos/SCREEN_Oper_Grid/Resources/Bootstrap/bootstrap5_dist/css/bootstrap.min.css")
+    bootstrap_js = Path("C:/Users/vlondagi/source/repos/SCREEN_Oper_Grid/Resources/Bootstrap/bootstrap5_dist/js/bootstrap.bundle.js")
+    datatables_dir = Path("C:/Users/vlondagi/source/repos/SCREEN_Oper_Grid/Resources/DataTables_Plugin/")
 
-    # Dev
-    # out_path = "\\\\AZSHFS.intel.com\\AZAnalysis$\\1274_MAODATA\\Config\\wet_etch\\KNST\\configs\\OperGrid\\"
-    debug_path = "\\\\AZSHFS.intel.com\\AZAnalysis$\\1274_MAODATA\\wet_etch\\KNST\\Script Output\\OperGrid\\Debugging\\"
 
 else:
-    output_dir = r"//AZSHFS.intel.com/AZAnalysis$/1274_MAODATA/wet_etch/KNST/Script Output/OperGrid/"
-    html_output_dir = r"//AZSHFS.intel.com/AZAnalysis$/1274_MAODATA/wet_etch/KNST/Script Output/OperGrid/Output_HTML/"
-    html_out_file = "https://azshweb.intel.com/AZAnalysis$/1274_MAODATA/wet_etch/KNST/Script Output/OperGrid/Output_HTML/"
-
+    output_dir = toolset.path_variables.get("output_dir", "")
+    html_output_dir = toolset.path_variables.get("html_output_dir", "")
+    html_out_file = toolset.path_variables.get("html_out_file", "")
+    bootstrap_css = toolset.path_variables.get("bootstrap_css", "")
+    bootstrap_js = toolset.path_variables.get("bootstrap_js", "")
+    datatables_dir = toolset.path_variables.get("datatables_dir", "")
 
 # Configuring Directories for Web Pages
-bootstrap_css = "https://azshweb.intel.com/AZAnalysis$/1274_MAODATA/Config/wet_etch/KNST/configs/Bootstrap/bootstrap5_dist/css/bootstrap.min.css"
-bootstrap_js = "https://azshweb.intel.com/AZAnalysis$/1274_MAODATA/Config/wet_etch/KNST/configs/Bootstrap/bootstrap5_dist/js/bootstrap.bundle.js"
-datatables_dir = "https://azshweb.intel.com/AZAnalysis$/1274_MAODATA/Config/wet_etch/KNST/configs/DataTables_Plugin/"
-# datatables_plugin = "https://azshweb.intel.com/AZAnalysis$/1274_MAODATA/Config/wet_etch/KNST/configs/DataTables_Plugin/datatables.min.js"
-# datatables_bootstrap_plugin = "https://azshweb.intel.com/AZAnalysis$/1274_MAODATA/Config/wet_etch/KNST/configs/DataTables_Plugin/Datatables-1.13.5/css/dataTables.bootstrap5.min.css"
-# jquery = "https://azshweb.intel.com/AZAnalysis$/1274_MAODATA/Config/wet_etch/KNST/configs/DataTables_Plugin/jQuery-3.7.0/jquery-3.7.0.min.js"
 datatables_plugin = datatables_dir + "datatables.min.js"
 datatables_bootstrap_plugin = datatables_dir + "Datatables-1.13.5/css/dataTables.bootstrap5.min.css"
 jquery = datatables_dir + "jQuery-3.7.0/jquery-3.7.0.min.js"
@@ -50,11 +166,99 @@ fixed_columns_bs_js = datatables_dir + "FixedColumns-4.3.0/js/fixedColumns.boots
 fixed_columns_css = datatables_dir + "FixedColumns-4.3.0/css/fixedColumns.dataTables.min.css"
 fixed_columns_bs_css = datatables_dir + "FixedColumns-4.3.0/css/fixedColumns.bootstrap5.min.css"
 
-ceid_list = ['NSTwa', 'NSTwn', 'KSTwa', 'NSTsc']
+am_model_map = toolset.model_map
+
+ceid_list = [k for k in am_model_map.keys()]
+
+entity_prefix_map = {ceid: re.match(r'[A-Z]+', ceid).group(0) for ceid in ceid_list}
+entity_prefixes = sorted(set(entity_prefix_map.values()))
+
+
+class DebuggingLogger:
+    def __init__(self, run_mode):
+        self.dbgpath = Path("C:/Users/vlondagi/source/repos/SCREEN_Oper_Grid/Script_Output/Debugging")
+        self.run_mode = run_mode
+        self.print_log = self.check_run_mode(self.print_log)
+        self.log_df = self.check_run_mode(self.log_df)
+        self.log_file = self.dbgpath / "Log_File.txt"
+
+        if not self.log_file.is_file():
+            with open(self.log_file, "a") as f:
+                pass
+
+    def check_run_mode(self, func):
+        def wrapper(*args, **kwargs):
+            if self.run_mode == "DEBUG":
+                result = func(*args, **kwargs)
+            else:
+                result = None
+
+            return result
+
+        return wrapper
+
+    def print_log(self, *args, **kwargs):
+        log_message = kwargs.get("log_message", "")
+
+        if "log_message" != "":
+            print(f"Log Message: {log_message}")
+            with open(self.log_file, "a") as f:
+                f.write(log_message)
+                f.write("\n")
+
+    def log_df(self, *args, **kwargs):
+        for idx, arg in enumerate(args):
+            if isinstance(arg, pd.DataFrame):
+                tbl = f"{arg} + {idx}"
+                arg.to_csv(self.dbgpath / tbl, index=False, index_label=None)
+
+        dfs = kwargs.get("dfs", "")
+        if dfs != "" and isinstance(dfs, list):
+            for idx, df in enumerate(dfs):
+                base_path = self.dbgpath / f"df{idx}"
+                print(f"Logging df{idx}...")
+                df.to_csv(base_path.with_suffix(".csv"), index=False, index_label=None)
+                print(f"df{idx} saved")
+        elif dfs != "" and isinstance(dfs, dict):
+            for k, v in dfs.items():
+                base_path = self.dbgpath / k
+                print(f"Logging {k}...")
+                v.to_csv(base_path.with_suffix(".csv"), index=False, index_label=None)
+                print(f"{k} saved")
+
+
+dbg = DebuggingLogger(run_mode=RUN_MODE)
+
+
+def get_all_keys(nested_dict):
+    keys = []
+    for k, v in nested_dict.items():
+        keys.append(k)
+        if isinstance(v, dict):
+            keys.extend(get_all_keys(v))
+
+    return keys
+
+
+def get_nested_dict_vals(data, search_str, not_in_str: list = []):
+    results = []
+
+    if isinstance(data, dict):
+        for k, v in data.items():
+            if search_str in str(k) and all(search_str not in item for item in not_in_str):
+                results.append(v)
+
+            results.extend(get_nested_dict_vals(v, search_str, not_in_str))
+
+    elif isinstance(data, list):
+        for item in data:
+            results.extend(get_nested_dict_vals(item, search_str, not_in_str))
+
+    return results
 
 
 # worker functions to simplify backend code
-def map_model(ceid: str) -> str:
+def map_model(ceid: str, model_ceid_map: dict = am_model_map) -> str:
     '''
     Returns the corresponding modelname for a given CEID.
     Only configured for NSTwa, NSTwn, and KSTwa modelnames. (NST_F3, NST_WN_F3, KST_F3, NST_SC_F3)
@@ -65,12 +269,7 @@ def map_model(ceid: str) -> str:
     Returns:
         str: The modelname for the CEID value
     '''
-    model_ceid_map = {
-        'NSTwa': 'NST_F3',
-        'NSTwn': 'NST_WN_F3',
-        'KSTwa': 'KST_F3',
-        'NSTsc': 'NST_SC_F3'
-    }
+
     return model_ceid_map[ceid]
 
 
@@ -95,7 +294,9 @@ def query_db(db_num: int) -> pd.DataFrame:
     """
     conn = PyUber.connect('F32_PROD_XEUS')
     if db_num == 1:
-        sql1 = """
+        conditions = [f"am8.modelname LIKE '{value}'" for value in am_model_map.values()]
+        # ({'\n OR '.join(conditions)})
+        sql1 = f"""
                 SELECT 
                     am8.am_ldr_path AS am_ldr_path
                     ,am8.am_ldr_process AS am_ldr_process
@@ -108,16 +309,15 @@ def query_db(db_num: int) -> pd.DataFrame:
             FROM 
             F_AM_Entry am8
             WHERE
-                        am8.intro_type = 'Production' 
-            AND      (am8.modelname LIKE  'KST_F3'
-            OR am8.modelname LIKE 'NST_F3'
-            OR am8.modelname LIKE 'NST_WN_F3'
-            OR am8.modelname LIKE 'NST_SC_F3'
-            ) 
+                        am8.intro_type = 'Production'
+            AND ({'\n OR '.join(conditions)})
         """
         df = pd.read_sql(sql1, conn)
+        # if RUN_MODE == "DEVELOPMENT":
+        #     print(f"DF1: {df}")
     elif db_num == 2:
-        sql2 = """
+        conditions = [f"am5.am_ldr_modelname LIKE '{value}'" for value in am_model_map.values()]
+        sql2 = f"""
             SELECT 
                 process AS process
                 ,modelname AS modelname
@@ -149,11 +349,7 @@ def query_db(db_num: int) -> pd.DataFrame:
         FROM 
         F_AM_F3 am5
         WHERE
-        (am5.am_ldr_modelname LIKE  'KST_F3'
-        OR am5.am_ldr_modelname LIKE 'NST_F3'
-        OR am5.am_ldr_modelname LIKE 'NST_WN_F3'
-        OR am5.am_ldr_modelname LIKE 'NST_SC_F3'
-        ) 
+        ({'\n OR '.join(conditions)})
         AND      am5.ct_file != '*'
         )
         ORDER BY
@@ -192,7 +388,8 @@ def query_db(db_num: int) -> pd.DataFrame:
         df = pd.read_sql(sql3, conn)
         df = df.pivot(index='ROW_NUMBER', columns='COLUMN_NAME', values='COLUMN_DATA')
     elif db_num == 4:
-        sql4 = """
+        conditions = [f"am7.am_ldr_modelname LIKE '{value}'" for value in am_model_map.values()]
+        sql4 = f"""
         SELECT 
                 am7.am_ldr_process AS process
                 ,am7.am_ldr_modelname AS model_name
@@ -206,17 +403,14 @@ def query_db(db_num: int) -> pd.DataFrame:
         FROM 
         F_AM_ToolFilter am7
         WHERE
-                    (am7.am_ldr_modelname LIKE  'NST_F3'
-        OR am7.am_ldr_modelname LIKE 'KST_F3'
-        OR am7.am_ldr_modelname LIKE 'NST_WN_F3'
-        OR am7.am_ldr_modelname LIKE 'NST_SC_F3'
-        ) 
+        ({'\n OR '.join(conditions)})
         ORDER BY
                 3 Asc
         """
         df = pd.read_sql(sql4, conn)
     elif db_num == 5:
-        sql5 = """
+        conditions = [f"e.entity LIKE '{value}___'" for value in entity_prefixes]
+        sql5 = f"""
         SELECT 
                 e.entity AS entity
                 ,e.facility AS facility
@@ -233,14 +427,13 @@ def query_db(db_num: int) -> pd.DataFrame:
         OR ea.attribute_name LIKE 'AdhocMon90%'
         ) 
         AND      e.configured_processes Like '%' 
-        AND      (e.entity LIKE  'KST___'
-        OR e.entity LIKE 'NST___'
-        ) 
+        AND      ({'\n OR '.join(conditions)})
         """
         df = pd.read_sql(sql5, conn)
         df = df.pivot(index='ENTITY', columns='ATTRIBUTE_NAME', values='ATTRIBUTE_VALUE')
     elif db_num == 6:
-        sql6 = """
+        conditions = [f"e.entity LIKE '{value}%'" for value in entity_prefixes]
+        sql6 = f"""
             SELECT 
                 facility AS facility
                 ,parent_entity AS parent_entity
@@ -258,6 +451,18 @@ def query_db(db_num: int) -> pd.DataFrame:
         WHEN   entity like '%MPC10' THEN 'MPC10'
         WHEN   entity like '%MPC11' THEN 'MPC11'
         WHEN   entity like '%MPC12' THEN 'MPC12'
+        WHEN   entity like '%MPC13' THEN 'MPC13'
+        WHEN   entity like '%MPC14' THEN 'MPC14'
+        WHEN   entity like '%MPC15' THEN 'MPC15'
+        WHEN   entity like '%MPC16' THEN 'MPC16'
+        WHEN   entity like '%U9' THEN 'U9'
+        WHEN   entity like '%U10' THEN 'U10'
+        WHEN   entity like '%U11' THEN 'U11'
+        WHEN   entity like '%U12' THEN 'U12'
+        WHEN   entity like '%U13' THEN 'U13'
+        WHEN   entity like '%U14' THEN 'U14'
+        WHEN   entity like '%U15' THEN 'U15'
+        WHEN   entity like '%U16' THEN 'U16'
         ELSE   SUBSTR( entity ,8)  END AS subentity
                 ,state AS state
                 ,availability AS availability
@@ -276,15 +481,17 @@ def query_db(db_num: int) -> pd.DataFrame:
         WHERE
                     e.entity_deleted_flag = 'N' 
         AND      e.configured_processes Like '%' 
-        AND      (e.entity LIKE  'KST%'
-        OR e.entity LIKE 'NST%'
-        ) 
+        AND      ({'\n OR '.join(conditions)})
         AND      e.entity Not Like '%LP%' 
+        AND      e.entity Not Like '%WPO%' 
         )
         """
         df = pd.read_sql(sql6, conn)
+        # if RUN_MODE == "DEVELOPMENT":
+        #     print(f"DF6: {df.head(20)}")
     elif db_num == 7:
-        sql7 = """
+        conditions = [f"e.entity LIKE '{value}%'" for value in entity_prefixes]
+        sql7 = f"""
             SELECT 
                 eo.facility AS facility
                 ,eo.entity AS entity
@@ -295,17 +502,16 @@ def query_db(db_num: int) -> pd.DataFrame:
         FROM 
         F_EntityOper eo
         LEFT JOIN F_Entity e ON e.entity = eo.entity AND e.facility = eo.facility
-        WHERE
-                    (eo.entity LIKE  'KST%'
-        OR eo.entity LIKE 'NST%'
-        ) 
+        WHERE    ({'\n OR '.join(conditions)})
         AND      eo.latest_flag = 'Y' 
         AND      eo.entity Not Like '%LP%' 
         AND      eo.entity Not Like '%MPC%'
+        AND      eo.entity Not Like '%SPIN%'
         """
         df = pd.read_sql(sql7, conn)
     elif db_num == 8:
-        sql8 = """
+        conditions = [f"o.module LIKE '%{value}%'" for value in entity_prefixes]
+        sql8 = f"""
         SELECT 
                 o.area AS area
                 ,o.module AS module
@@ -318,16 +524,13 @@ def query_db(db_num: int) -> pd.DataFrame:
         INNER JOIN F_Operation O ON o.operation=lrc.operation AND o.facility = lrc.facility AND o.latest_version = 'Y'
         WHERE
                     lrc.out_date >= TRUNC(SYSDATE) - 28 
-        AND      (o.module LIKE  '%NST'
-        OR o.module LIKE '%NST%'
-        OR o.module LIKE '%KST%'
-        OR o.module LIKE '%SST%'
-        ) 
+        AND      ({'\n OR '.join(conditions)})
         """
         df = pd.read_sql(sql8, conn)
         df.drop_duplicates(ignore_index=True, inplace=True)
     elif db_num == 9:
-        sql9 = """
+        conditions = [f"am5.am_ldr_modelname LIKE '{value}'" for value in am_model_map.values()]
+        sql9 = f"""
         SELECT 
                 process AS process
                 ,modelname AS modelname
@@ -355,11 +558,7 @@ def query_db(db_num: int) -> pd.DataFrame:
         FROM 
         F_AM_F3 am5
         WHERE
-        (am5.am_ldr_modelname LIKE  'KST_F3'
-        OR am5.am_ldr_modelname LIKE 'NST_F3'
-        OR am5.am_ldr_modelname LIKE 'NST_WN_F3'
-        OR am5.am_ldr_modelname LIKE 'NST_SC_F3'
-        ) 
+        ({'\n OR '.join(conditions)})
         AND      am5.ct_file != '*' 
         )
         ORDER BY
@@ -457,7 +656,16 @@ def create_tool_dict(entry_df: pd.DataFrame, ent_stat_df: pd.DataFrame) -> dict:
     Returns:
         dict: map of CEIDs to their corresponding tools as a list {ceid : [tool]}
     """
-    ceid_tools = {}
+    ceid_tools = {ceid: [] for ceid in ceid_list}
+
+    def filter_tools(tools: list) -> list:
+        cleaned = []
+        for tool in tools:
+            token = str(tool).strip()
+            if token == '' or '*' in token:
+                continue
+            cleaned.append(token)
+        return cleaned
 
     # creating inner function to add and sort tool lists to ceid_tools
     def add_tools(ceid: str, entities: list, entity_string: str) -> None:
@@ -468,33 +676,54 @@ def create_tool_dict(entry_df: pd.DataFrame, ent_stat_df: pd.DataFrame) -> dict:
             entities (list): list of tools to be added to dictionary
             entity_string (str): original string of entities to be compared in the entry table
         """
-        # checks the modelname for entity_string before adding it to ceid_tools
+        # checks the modelname for entity_string before adding it to ceid_tool
+        # if "*" in entity_string:
+        #     entity_string = "|".join(ent_stat_df["PARENT_ENTITY"].unique())
+
         if entry_df['MODEL_NAME'].loc[entry_df['ENTITY'] == entity_string].iloc[0] == map_model(ceid):
-            if ceid_tools.setdefault(ceid, entities) != entities: ceid_tools[ceid].extend(entities)
-            ceid_tools[ceid] = sorted(ceid_tools[ceid])
+            ceid_tools[ceid].extend(entities)
+
 
     # splitting string of entities based on their format
     for entity_string in entry_df['ENTITY']:
-        if 'NST(' in entity_string:
-            tools = [('NST' + id) for id in entity_string[4:-1].split('|')]
+        entity_string = str(entity_string).strip()
+        match = re.fullmatch(r'([A-Z]+)\(([^)]+)\)', entity_string)
+        if match:
+            entity_prefix = match.group(1)
+            tools = [f"{entity_prefix}{item.strip()}" for item in match.group(2).split('|')]
         else:
-            tools = entity_string.split('|')
+            tools = [item.strip() for item in entity_string.split('|') if item.strip()]
 
-        add_tools('NSTwa', tools, entity_string)
-        add_tools('NSTwn', tools, entity_string)
-        add_tools('KSTwa', tools, entity_string)
-        add_tools('NSTsc', tools, entity_string)
-        # add_tools('NSTpc', tools, entity_string)
+        tools = filter_tools(tools)
+
+        for tool in ceid_list:
+            add_tools(tool, tools, entity_string)
+
+    for ceid in ceid_list:
+        if len(ceid_tools[ceid]) == 0:
+            prefix = entity_prefix_map[ceid]
+            ceid_tools[ceid] = sorted(ent_stat_df.loc[
+                ent_stat_df["PARENT_ENTITY"].str.startswith(prefix), "PARENT_ENTITY"
+            ].unique())
+        else:
+            ceid_tools[ceid] = sorted(set(ceid_tools[ceid]))
+
 
     # check through each tool list to remove any bagged tools
-    for ceid in ceid_tools.keys():
+    for ceid in ceid_list:
+        all_tools = list(ceid_tools[ceid])
         unbagged_tools = []
         for tool in ceid_tools[ceid]:
             if_not_in_ent_stat = (tool not in ent_stat_df['PARENT_ENTITY'].values)
             if_bagged = 'Bagged' in (ent_stat_df['STATE'].loc[(ent_stat_df['SUBENTITY'] == 'Parent') &
                                                               (ent_stat_df['PARENT_ENTITY'] == tool)].to_string())
             if not ((if_not_in_ent_stat) or (if_bagged)): unbagged_tools.append(tool)
-        ceid_tools[ceid] = unbagged_tools
+
+        # keep table headers populated even when runtime status marks all tools as bagged
+        if len(unbagged_tools) == 0:
+            ceid_tools[ceid] = all_tools
+        else:
+            ceid_tools[ceid] = unbagged_tools
 
     return ceid_tools
 
@@ -526,10 +755,7 @@ def create_oper_dict(setup_df: pd.DataFrame, lot_hist_df: pd.DataFrame) -> dict:
         oper_list = {}
         # slice setup_df with relevant info and tools
         new_df_cols = ['ROW_ORDER', 'ENTITY', 'PRODUCT', 'ROUTE', 'OPERATION', 'RECIPE_NAME', 'CT_FILE']
-        # new_df = setup_df.loc[
-        #     (setup_df['MODELNAME'] == map_model(ceid)), new_df_cols]
-        new_df = setup_df.loc[
-            (setup_df['MODELNAME'] == map_model(ceid)) & (setup_df['ENTITY'].str.contains('\\*')), new_df_cols]
+        new_df = setup_df.loc[(setup_df['MODELNAME'] == map_model(ceid)), new_df_cols]
         for idx in range(new_df.shape[0]):
             oper = new_df['OPERATION'].iloc[idx]
             rec = new_df['RECIPE_NAME'].iloc[idx]
@@ -537,9 +763,9 @@ def create_oper_dict(setup_df: pd.DataFrame, lot_hist_df: pd.DataFrame) -> dict:
             route = new_df['ROUTE'].iloc[idx]
             prod = new_df['PRODUCT'].iloc[idx]
 
-            # check to see if op is currently running
-            if (oper not in lot_hist_df['OPERATION'].values) or (route != '*') or (prod != '*'): continue
-            # if (route != '*') or (prod != '*'): continue
+            # include AMCT defaults; do not limit to only recent lot history
+            if (route != '*') or (prod != '*'):
+                continue
 
             oper_list.setdefault(oper, (rec, ct_file, route, prod))
 
@@ -577,20 +803,19 @@ def check_ops_to_ent(oper: str, entity: str, ops_ent_df: pd.DataFrame, cc_df: pd
     Returns:
         str: Empty if passed, O if not passed
     """
-    # slice DataFrames based on input operation and tool
-    new_oe_df = ops_ent_df[(ops_ent_df['OPERATION'] == oper) & (ops_ent_df['PARENT_ENTITY'] == entity)]
-    new_cc_df = cc_df[(cc_df['PARENT_ENTITY'] == entity) & (~cc_df['SUBENTITY'].str.contains('MPC'))]
+    oper = str(oper).strip()
+    entity = str(entity).strip()
 
-    # compare ops/ent DF with all subentities listed in cc_df
-    for subentity in new_cc_df['SUBENTITY']:
-        check_str = entity
-        if subentity == 'Parent':
-            continue
-        else:
-            check_str += '_' + subentity
+    # valid association only when parent entity itself is explicitly associated to the operation
+    parent_assoc = ops_ent_df[
+        (ops_ent_df['OPERATION'].astype(str).str.strip() == oper)
+        & (ops_ent_df['PARENT_ENTITY'].astype(str).str.strip() == entity)
+        & (ops_ent_df['ENTITY'].astype(str).str.strip() == entity)
+    ]
 
-        # check if subentity or parent exists in ops/ent DF or not
-        if check_str not in new_oe_df['ENTITY'].values: return "O"
+    if parent_assoc.empty:
+        return "O"
+
     return ''
 
 
@@ -614,6 +839,8 @@ def check_tool_filter(oper: str, entity: str, tf_df: pd.DataFrame, ceid: str, ce
     new_df = tf_df.loc[
         tf_df['MODEL_NAME'] == mapped_model, ['ROW_ORDER', 'OPERATION', 'ROUTE', 'ENTITY', 'LAYER', 'TOOL_ALLOWED']]
 
+    new_df["LAYER"] = new_df["LAYER"].fillna("*")
+
     # still losing my mind
     for idx in range(new_df.shape[0]):
         curr_row = new_df.iloc[idx].iloc[0]
@@ -630,8 +857,8 @@ def check_tool_filter(oper: str, entity: str, tf_df: pd.DataFrame, ceid: str, ce
         if (curr_row == 1) or ('*72.*' in curr_route): continue
 
         # split entity and operation strings into sets
-        if 'NST(' in curr_entities:
-            curr_entities = set('NST' + id for id in curr_entities[4:-1].split('|'))
+        if '(' in curr_entities:
+            curr_entities = set(curr_entities[0:4].split('|') + id for id in curr_entities[4:-1].split('|'))
         elif curr_entities != '*':
             curr_entities = set(curr_entities.split('|'))
         if curr_oper != '*': curr_oper = set(curr_oper.split('|'))
@@ -654,7 +881,6 @@ def check_tool_filter(oper: str, entity: str, tf_df: pd.DataFrame, ceid: str, ce
                 oper_set = {s for set_ in ct_file_lookup.values() for s in set_}
                 if oper in oper_set:
                     final_status = curr_status
-                    # print(f'second break for {oper} and {entity}')
                     break
             else:
                 continue
@@ -696,7 +922,7 @@ def check_moqr(oper: str, entity: str, asom: pd.DataFrame, ent_stat_df: pd.DataF
     """
     try:
         ent_moqr = ent_stat_df.loc[entity].iloc[1].split('/')
-    except AttributeError:
+    except (AttributeError, KeyError, IndexError, TypeError):
         ent_moqr = []
 
     # check if operation is in MOQR string from entity_status
@@ -775,6 +1001,7 @@ def check_spr(entity: str, spr_df: pd.DataFrame) -> str:
     Returns:
         str: Empty if passed, R if locked out
     """
+    spr_df["AdhocMon90"] = spr_df["AdhocMon90"].fillna(0)
     if int(spr_df['AdhocMon90'].loc[entity]) > 0: return 'R'
     return ''
 
@@ -791,15 +1018,15 @@ def check_min_spin(entity: str, ent_stat_df: pd.DataFrame) -> str:
     """
     # slice input DF query based on parent_entity and 'MPC' subentities only
     new_df = ent_stat_df[['PARENT_ENTITY', 'SUBENTITY', 'STATE', 'AVAILABILITY']][
-        (ent_stat_df['SUBENTITY'].str.contains('MPC')) & (ent_stat_df['PARENT_ENTITY'] == entity)]
+             ((ent_stat_df['SUBENTITY'].str.contains('MPC')) | ent_stat_df['SUBENTITY'].str.contains('SPIN')) & (ent_stat_df['PARENT_ENTITY'] == entity)]
 
     # count the number of chambers currently up on entity
     count = 0
     for spin_status in new_df['AVAILABILITY']:
         if spin_status == 'Up': count += 1
 
-    # check if min up count is >= 6
-    if int(count) <= int(5): return 'N'
+    # check if min up count is >= min_chamber_check
+    if int(count) <= int(toolset.min_chamber_check): return 'N'
     return ''
 
 
@@ -962,19 +1189,8 @@ legend_table = f"""
 """
 
 
-# <td style="width: 100px; background-color:{colors['bad']}"></td>
-# <td style="width: 100px; background-color:{colors['neutral']}"></td>
-# <td style="width: 100px; background-color:{colors['grey']}"></td>
-# <td style="width: 100px; background-color:{colors['good']}"></td>
-# <nav class="navbar navbar-expand-lg bg-body-tertiary"> # --- Previous Nav Class ---
-
-
 def write_html_output(link_dict, custom_css, searchable=True, **kwargs):
-    # home_link = link_dict["home"]
-    kst_link = link_dict["kst_href"]
-    nstwa_link = link_dict["nstwa_href"]
-    nstwn_link = link_dict["nstwn_href"]
-    nstsc_link = link_dict["nstsc_href"]
+    nav_links = [f'<li class="nav-item">\n\t <a class="navbar-brand" href="{val}">{key.split("_")[0].upper()}</a> \n\t</li>' for key, val in link_dict.items() if "oper" not in str(key)]
     oper_grid_diffs_link = link_dict["oper_grid_diffs_href"]
     title = kwargs["title"]
     heading = kwargs["heading"]
@@ -983,7 +1199,7 @@ def write_html_output(link_dict, custom_css, searchable=True, **kwargs):
     file_name = kwargs["file_name"]
     table_id = kwargs["table_id"]
     caption = kwargs["caption"]
-    output_file = html_output_dir + file_name
+    output_file = html_output_dir / file_name
     updated_date = datetime.strftime(datetime.today(), '%Y-%m-%d %H:%M:%S')
     data_tables_options = """{
             fixedColumns: {
@@ -1036,18 +1252,7 @@ def write_html_output(link_dict, custom_css, searchable=True, **kwargs):
           <div class="container-fluid">
             <div class="collapse navbar-collapse" id="navbarSupportedContent">
               <ul class="navbar-nav me-auto mb-2 mb-lg-0">
-                <li class="nav-item">
-                  <a class="navbar-brand" href="{kst_link}">KST</a>
-                </li>
-                <li class="nav-item">
-                  <a class="navbar-brand" href="{nstwa_link}">NSTwa/wp</a>
-                </li>
-                <li class="nav-item">
-                  <a class="navbar-brand" href="{nstwn_link}">NSTwn/pn</a>
-                </li>
-                <li class="nav-item">
-                  <a class="navbar-brand" href="{nstsc_link}">NSTsc</a>
-                </li>
+                {"\n".join(nav_links)}
                 <li class="nav-item">
                   <a class="navbar-brand" href="{oper_grid_diffs_link}">Oper Grid Changes</a>
                 </li>
@@ -1081,29 +1286,47 @@ def write_html_output(link_dict, custom_css, searchable=True, **kwargs):
     </html>
 
     """
-    with open(output_file + ".html", "w") as report:
+    with open(output_file.with_suffix(".html"), "w") as report:
         report.write(html_text)
 
 
 def write_email_html_output(link_dict, custom_css, **kwargs):
+    nav_links = [f'<li class="nav-item">\n\t <a class="navbar-brand" href="{val}">{key.split("_")[0].upper()}</a> \n\t</li>' for key, val in link_dict.items() if "oper" not in str(key)]
     filename = kwargs.get("file_name", "DEFAULT")
-    output_file = html_output_dir + filename
+    output_file = html_output_dir / filename
     title = kwargs.get("title")
     heading = kwargs.get("heading")
     body_text = kwargs.get("body_text", "")
-    oper_grid_link = link_dict.get("kst_href", "")
-    kst_table = kwargs.get("kst_table")
-    nst_table = kwargs.get("nst_table")
-    nstwn_table = kwargs.get("nstwn_table")
-    nstsc_table = kwargs.get("nstsc_table")
-    kst_table_head = kwargs.get("kst_table_head", "")
-    nst_table_head = kwargs.get("nst_table_head", "")
-    nstwn_table_head = kwargs.get("nstwn_table_head", "")
-    nstsc_table_head = kwargs.get("nstsc_table_head", "")
-    kst_table_caption = kwargs.get("kst_table_caption", "")
-    nst_table_caption = kwargs.get("nst_table_caption", "")
-    nstwn_table_caption = kwargs.get("nstwn_table_caption", "")
-    nstsc_table_caption = kwargs.get("nstsc_table_caption", "")
+    oper_grid_link = next(iter(link_dict.values()), None)
+
+    table_div_items = []
+    table_divs = []
+    for ceid in ceid_list:
+        tbl = kwargs.get(f"{ceid}_table")
+        head = kwargs.get(f"{ceid}_table_head", "")
+        cap = kwargs.get(f"{ceid}_table_caption", "")
+
+        temp = [tbl, head, cap]
+
+        table_div_items.append(temp)
+
+    for div in table_div_items:
+        table_div = f"""
+            <div class="table-div">
+                <div class="table-head">
+                    <h3>{div[0]}</h3>
+                </div>
+                    {div[1]}
+                <div class="table-caption">
+                    <p>{div[2]}</p>
+                </div>
+            </div>
+        """
+
+        table_divs.append(table_div)
+
+    # tables = get_nested_dict_vals(kwargs, "_table")
+    # print(f"Line 1120 - Tables: {tables}")
     updated_date = datetime.strftime(datetime.today(), '%Y-%m-%d %H:%M:%S')
 
     html_text = f"""
@@ -1123,47 +1346,12 @@ def write_email_html_output(link_dict, custom_css, **kwargs):
         <h1>{heading}</h1>
         <div class="body-div">
             <p>Updated: {updated_date}</p>
-            <a href="{oper_grid_link}">KNST Oper Grid</a>
+            <a href="{oper_grid_link}">Oper Grid</a>
         </div>
         <div class="body-div">
             {body_text}
         </div>
-        <div class="table-div">
-            <div class="table-head">
-                <h3>{kst_table_head}</h3>
-            </div>
-                {kst_table}
-            <div class="table-caption">
-                <p>{kst_table_caption}</p>
-            </div>
-        </div>
-        <div class="table-div">
-            <div class="table-head">
-                <h3>{nst_table_head}</h3>
-            </div>
-                {nst_table}
-            <div class="table-caption">
-                <p>{nst_table_caption}</p>
-            </div>
-        </div>
-        <div class="table-div">
-            <div class="table-head">
-                <h3>{nstwn_table_head}</h3>
-            </div>
-                {nstwn_table}
-            <div class="table-caption">
-                <p>{nstwn_table_caption}</p>
-            </div>
-        </div>
-        <div class="table-div">
-            <div class="table-head">
-                <h3>{nstsc_table_head}</h3>
-            </div>
-                {nstsc_table}
-            <div class="table-caption">
-                <p>{nstsc_table_caption}</p>
-            </div>
-        </div>
+        {"\n".join(table_divs)}
         <script src="{bootstrap_js}"></script>
         </body>
         <footer>
@@ -1171,19 +1359,16 @@ def write_email_html_output(link_dict, custom_css, **kwargs):
     </html>
 
     """
-    with open(output_file + ".html", "w") as report:
+    with open(output_file.with_suffix(".html"), "w") as report:
         report.write(html_text)
 
 
 def write_diffs_html_output(link_dict, custom_css, searchable=True, **kwargs):
+    nav_links = [f'<li class="nav-item">\n\t <a class="navbar-brand" href="{val}">{key.split("_")[0].upper()}</a> \n\t</li>' for key, val in link_dict.items() if "oper" not in str(key)]
     filename = kwargs.get("file_name", "DEFAULT")
-    output_file = html_output_dir + filename
+    output_file = html_output_dir / filename
     title = kwargs.get("title")
     heading = kwargs.get("heading")
-    kst_link = link_dict.get("kst_href", "")
-    nstwa_link = link_dict.get("nstwa_href", "")
-    nstwn_link = link_dict.get("nstwn_href", "")
-    nstsc_link = link_dict.get("nstsc_href", "")
     oper_grid_diffs_link = link_dict.get("oper_grid_diffs_href", "")
     changes_detected = kwargs.get("changes_detected", False)
     if changes_detected:
@@ -1191,18 +1376,33 @@ def write_diffs_html_output(link_dict, custom_css, searchable=True, **kwargs):
     else:
         body_text = """<h2><strong>No Changes Detected</strong></h2>"""
 
-    kst_table = kwargs.get("kst_table")
-    nst_table = kwargs.get("nst_table")
-    nstwn_table = kwargs.get("nstwn_table")
-    nstsc_table = kwargs.get("nstsc_table")
-    kst_table_head = kwargs.get("kst_table_head", "")
-    nst_table_head = kwargs.get("nst_table_head", "")
-    nstwn_table_head = kwargs.get("nstwn_table_head", "")
-    nstsc_table_head = kwargs.get("nstsc_table_head", "")
-    kst_table_caption = kwargs.get("kst_table_caption", "")
-    nst_table_caption = kwargs.get("nst_table_caption", "")
-    nstwn_table_caption = kwargs.get("nstwn_table_caption", "")
-    nstsc_table_caption = kwargs.get("nstsc_table_caption", "")
+    table_div_items = []
+    table_divs = []
+    for ceid in ceid_list:
+        tbl = kwargs.get(f"{ceid}_table")
+        head = kwargs.get(f"{ceid}_table_head", "")
+        cap = kwargs.get(f"{ceid}_table_caption", "")
+
+        if tbl is not None:
+            temp = [tbl, head, cap]
+
+            table_div_items.append(temp)
+
+    for div in table_div_items:
+        table_div = f"""
+                <div class="table-div">
+                    <div class="table-head">
+                        <h3>{div[0]}</h3>
+                    </div>
+                        {div[1]}
+                    <div class="table-caption">
+                        <p>{div[2]}</p>
+                    </div>
+                </div>
+            """
+
+        table_divs.append(table_div)
+
     updated_date = datetime.strftime(datetime.today(), '%Y-%m-%d %H:%M:%S')
     table_ids = kwargs.get("table_ids", [])
     data_tables_options = """{
@@ -1254,18 +1454,7 @@ def write_diffs_html_output(link_dict, custom_css, searchable=True, **kwargs):
           <div class="container-fluid">
             <div class="collapse navbar-collapse" id="navbarSupportedContent">
               <ul class="navbar-nav me-auto mb-2 mb-lg-0">
-                <li class="nav-item">
-                  <a class="navbar-brand" href="{kst_link}">KST</a>
-                </li>
-                <li class="nav-item">
-                  <a class="navbar-brand" href="{nstwa_link}">NSTwa/wp</a>
-                </li>
-                <li class="nav-item">
-                  <a class="navbar-brand" href="{nstwn_link}">NSTwn/pn</a>
-                </li>
-                <li class="nav-item">
-                  <a class="navbar-brand" href="{nstsc_link}">NSTsc</a>
-                </li>
+                {"\n".join(nav_links)}
                 <li class="nav-item">
                   <a class="navbar-brand" href="{oper_grid_diffs_link}">Oper Grid Changes</a>
                 </li>
@@ -1278,42 +1467,7 @@ def write_diffs_html_output(link_dict, custom_css, searchable=True, **kwargs):
         <div class="body-div">
             {body_text}
         </div>
-        <div class="table-div">
-            <div class="table-head">
-                <h3>{kst_table_head}</h3>
-            </div>
-                {kst_table}
-            <div class="table-caption">
-                <p>{kst_table_caption}</p>
-            </div>
-        </div>
-        <div class="table-div">
-            <div class="table-head">
-                <h3>{nst_table_head}</h3>
-            </div>
-                {nst_table}
-            <div class="table-caption">
-                <p>{nst_table_caption}</p>
-            </div>
-        </div>
-        <div class="table-div">
-            <div class="table-head">
-                <h3>{nstwn_table_head}</h3>
-            </div>
-                {nstwn_table}
-            <div class="table-caption">
-                <p>{nstwn_table_caption}</p>
-            </div>
-        </div>
-        <div class="table-div">
-            <div class="table-head">
-                <h3>{nstsc_table_head}</h3>
-            </div>
-                {nstsc_table}
-            <div class="table-caption">
-                <p>{nstsc_table_caption}</p>
-            </div>
-        </div>
+        {"\n".join(table_divs)}
         <script src="{bootstrap_js}"></script>
         <script src="{jquery}"></script>
         <script src="{datatables_plugin}"></script>
@@ -1326,7 +1480,7 @@ def write_diffs_html_output(link_dict, custom_css, searchable=True, **kwargs):
     </html>
 
     """
-    with open(output_file + ".html", "w") as report:
+    with open(output_file.with_suffix(".html"), "w") as report:
         report.write(html_text)
 
 
@@ -1344,9 +1498,11 @@ def main():
     df8 = query_db(8)
     df9 = query_db(9)
 
-    if RUN_MODE == "DEVELOPMENT":
-        for idx, tbl in enumerate([df1, df2, df3, df4, df5, df6, df7, df8, df9]):
-            tbl.to_csv(debug_path + f"df{idx + 1}" + ".csv")
+    df_log = {"df1": df1, "df2": df2, "df3": df3,
+              "df4": df4, "df5": df5, "df6": df6,
+              "df7": df7, "df8": df8, "df9": df9}
+    # dbg.log_df(dfs=df_log)
+
 
     # create backend data structures for later reference
     print('Creating backend data structures...')
@@ -1383,7 +1539,6 @@ def main():
             dict: Nested dict in format: {ceid : {op : {entity : status}}}
         """
         op_ent_data = {}
-
         for ceid in ceid_tools.keys():
             op_ent_data[ceid] = {}
             for oper in ceid_oper[ceid]:
@@ -1416,7 +1571,7 @@ def main():
         """
         # extract data for given CEID
         curr_data = op_ent_data[ceid]
-        ops_list = curr_data.keys()
+        ops_list = list(curr_data.keys())
         rec_list = []
         cc_list = []
         route_list = []
@@ -1446,13 +1601,14 @@ def main():
 
         # assemble DataFrame from dictionary
         out_df = pd.DataFrame.from_dict(curr_data, orient='index')
-        out_df['Recipe'] = rec_list
-        out_df['CC Used'] = cc_list
+        out_df.index = out_df.index.astype(str)
+        out_df['Recipe'] = pd.Series(rec_list, index=[str(op) for op in ops_list])
+        out_df['CC Used'] = pd.Series(cc_list, index=[str(op) for op in ops_list])
         # out_df['Route'] = route_list
-        out_df.insert(0, 'Paths Open', paths_open_list)
-        out_df.sort_values('Paths Open', inplace=True)
-        out_df.index.name = 'Operation'
-        out_df.reset_index()
+        out_df.insert(0, 'Paths Open', pd.Series(paths_open_list, index=[str(op) for op in ops_list]))
+        out_df.insert(0, 'Operation', out_df.index)
+        out_df.sort_values(['Paths Open', 'Operation'], inplace=True)
+        out_df.reset_index(drop=True, inplace=True)
 
         return out_df
 
@@ -1472,14 +1628,31 @@ def main():
         if not (os.path.isfile(path)): return []
 
         # extract grids with common columns for initial row comparisons
-        old_grid = pd.read_csv(path, sep='\t', index_col=0)
+        old_grid = pd.read_csv(path, sep='\t')
+
+        # support legacy files that saved Operation as index or unnamed first column
+        if "Operation" not in old_grid.columns:
+            unnamed_cols = [col for col in old_grid.columns if str(col).lower().startswith('unnamed:')]
+            if len(unnamed_cols) != 0:
+                old_grid.rename(columns={unnamed_cols[0]: 'Operation'}, inplace=True)
+            elif len(old_grid.columns) != 0:
+                old_grid.rename(columns={old_grid.columns[0]: 'Operation'}, inplace=True)
+
+        # remove serialized index artifacts from both frames
+        grid = grid.loc[:, ~grid.columns.astype(str).str.lower().str.startswith('unnamed:')]
+        old_grid = old_grid.loc[:, ~old_grid.columns.astype(str).str.lower().str.startswith('unnamed:')]
 
         if grid.equals(old_grid):
-            dummy_df = pd.DataFrame()
-            dummy_df.to_csv(output_dir + f'{ceid}_diffs.tab')
+            dummy_df = pd.DataFrame(columns=["Operation"])
+            dummy_df_path = output_dir / f'{ceid}_diffs'
+            dummy_df.to_csv(dummy_df_path.with_suffix('.tab'), sep='\t', index=False)
             return []
-        grid["Operation"] = grid["Operation"].astype(int)
-        old_grid["Operation"] = old_grid["Operation"].astype(int)
+        grid["Operation"] = pd.to_numeric(grid["Operation"], errors='coerce')
+        old_grid["Operation"] = pd.to_numeric(old_grid["Operation"], errors='coerce')
+        grid = grid.dropna(subset=["Operation"]).copy()
+        old_grid = old_grid.dropna(subset=["Operation"]).copy()
+        grid["Operation"] = grid["Operation"].astype('int64').astype(str)
+        old_grid["Operation"] = old_grid["Operation"].astype('int64').astype(str)
         intercol = grid.columns.intersection(old_grid.columns)
         interrow = set(np.intersect1d(grid.Operation.values, old_grid.Operation.values))
         new_g1 = grid.loc[:, intercol]
@@ -1493,8 +1666,9 @@ def main():
         diff_df = diff_df['new'].compare(diff_df['old'])
         diff_df.rename(columns={'self': 'New', 'other': 'Old'}, level=-1, inplace=True)
         if diff_df.shape[0] == 0:
-            dummy_df = pd.DataFrame()
-            dummy_df.to_csv(output_dir + f'{ceid}_diffs.tab')
+            dummy_df = pd.DataFrame(columns=["Operation"])
+            dummy_df_path = output_dir / f'{ceid}_diffs'
+            dummy_df.to_csv(dummy_df_path.with_suffix('.tab'), sep='\t', index=False)
             return []
 
         # find any added/removed tools and operations
@@ -1504,7 +1678,7 @@ def main():
         added_ops = [str(op) for op in grid.Operation.values if op not in interrow]
 
         # save differences to .tab file
-        diffspath = output_dir + f'{ceid}_diffs.tab'
+        diffspath = output_dir / f'{ceid}_diffs.tab'
         diff_df.columns = ["_".join(a) for a in diff_df.columns.to_flat_index()]
 
         for col in diff_df.columns:
@@ -1519,21 +1693,20 @@ def main():
     # iterating through all op/ent combinations to create ops grid info
     print('Creating Ops Grid information...')
     op_ent_data = create_data_dict()
-
     # checking previous grid iterations...
     for ceid in ceid_list:
-
-        if os.path.exists(output_dir + f'{ceid}_diffs.tab'):
+        pth_ceid_diffs = output_dir / f'{ceid}_diffs'
+        if os.path.exists(pth_ceid_diffs.with_suffix('.tab')):
             print(f"Removing previous Difference Log for {ceid}...")
-            os.remove(output_dir + f'{ceid}_diffs.tab')
+            os.remove(pth_ceid_diffs.with_suffix('.tab'))
 
         print(f"Checking for changes to {ceid} Oper Grid...")
-        output_path = output_dir + f'{ceid}_ops_grid.tab'
-        temp_path = output_dir + f'{ceid}_ops_grid_temp.tab'
+        output_path = output_dir / f'{ceid}_ops_grid.tab'
+        temp_path = output_dir / f'{ceid}_ops_grid_temp.tab'
 
         # using a temporary copy of the grid for reformatting
         ops_grid = unpack_data(ceid, op_ent_data, df9, ceid_oper)
-        ops_grid.to_csv(temp_path, sep='\t')
+        ops_grid.to_csv(temp_path, sep='\t', index=False)
         ops_grid = pd.read_csv(temp_path, sep='\t')
         changes = check_updates(ops_grid, output_path, ceid)
         if changes != []:
@@ -1559,319 +1732,234 @@ def main():
 
     # reformatting data into DataFrame structure
     print('Formatting the Ops Grids...')
-    KST_ops_grid = unpack_data('KSTwa', op_ent_data, df9, ceid_oper).reset_index()
-    KST_ops_grid = KST_ops_grid.merge(df2[["OPERATION", "PROCESS_NODE"]], how="inner", left_on="Operation",
-                                      right_on="OPERATION")
-    KST_ops_grid.drop(["OPERATION"], axis=1, inplace=True)
+    report_config_dict = {}
+    for ceid in ceid_list:
+        ops_grid_key = f"{ceid}_ops_grid"
+        ops_grid_val = unpack_data(ceid, op_ent_data, df9, ceid_oper)
+        ops_grid_val = ops_grid_val.loc[:, ~ops_grid_val.columns.duplicated()].copy()
+        process_node_df = df2[["OPERATION", "PROCESS_NODE"]].copy()
+        process_node_df["OPERATION"] = process_node_df["OPERATION"].astype(str).str.strip()
+        process_node_df = process_node_df.drop_duplicates(subset=["OPERATION"])
+        ops_grid_val["Operation"] = ops_grid_val["Operation"].astype(str).str.strip()
+        ops_grid_val = ops_grid_val.merge(process_node_df, how="left", left_on="Operation",
+                                right_on="OPERATION")
+        ops_grid_val.drop(["OPERATION"], axis=1, inplace=True)
+        ops_grid_val["PROCESS_NODE"] = ops_grid_val["PROCESS_NODE"].fillna("")
+        ops_grid_val = ops_grid_val.loc[:, ~ops_grid_val.columns.duplicated()].copy()
 
-    NST_WN_ops_grid = unpack_data('NSTwn', op_ent_data, df9, ceid_oper).reset_index()
-    NST_WN_ops_grid = NST_WN_ops_grid.merge(df2[["OPERATION", "PROCESS_NODE"]], how="inner", left_on="Operation",
-                                            right_on="OPERATION")
-    NST_WN_ops_grid.drop(["OPERATION"], axis=1, inplace=True)
-
-    NST_ops_grid = unpack_data('NSTwa', op_ent_data, df9, ceid_oper).reset_index()
-    NST_ops_grid = NST_ops_grid.merge(df2[["OPERATION", "PROCESS_NODE"]], how="inner", left_on="Operation",
-                                      right_on="OPERATION")
-    NST_ops_grid.drop(["OPERATION"], axis=1, inplace=True)
-
-    NST_SC_ops_grid = unpack_data('NSTsc', op_ent_data, df9, ceid_oper).reset_index()
-    NST_SC_ops_grid = NST_SC_ops_grid.merge(df2[["OPERATION", "PROCESS_NODE"]], how="inner", left_on="Operation",
-                                            right_on="OPERATION")
-    NST_SC_ops_grid.drop(["OPERATION"], axis=1, inplace=True)
+        report_config_dict[ceid] = {"ops_grid_key": ops_grid_key, "ops_grid": ops_grid_val}
 
     # Create Lists of Entities for Subset Parameter
-    kst_subset = [x for x in KST_ops_grid.columns if re.match("KST", x)]
-    nstwn_subset = [x for x in NST_WN_ops_grid.columns if re.match("NST", x)]
-    nst_subset = [x for x in NST_ops_grid.columns if re.match("NST", x)]
-    nstsc_subset = [x for x in NST_SC_ops_grid.columns if re.match("NST", x)]
+    for k, v in report_config_dict.items():
+        subset_key = f"{k}_subset"
+        subset_val = report_config_dict[k]["ops_grid"]
+        tool_prefix = entity_prefix_map.get(k, k).upper()
+        fixed_cols = {"Operation", "Paths Open", "Recipe", "CC Used", "PROCESS_NODE"}
+        subset_val = [
+            x for x in subset_val.columns
+            if (x not in fixed_cols) and str(x).upper().startswith(tool_prefix)
+        ]
+        if len(subset_val) == 0:
+            subset_val = [x for x in report_config_dict[k]["ops_grid"].columns if x not in fixed_cols]
+
+        report_config_dict[k]["subset"] = subset_val
 
     # saving ops grid to .csv files in output directory
     print('Saving the New Ops Grid as .tab files...')
-    KST_ops_grid.to_csv(output_dir + 'KST_ops_grid.tab', sep='\t')
-    NST_ops_grid.to_csv(output_dir + 'NSTwa_ops_grid.tab', sep='\t')
-    NST_WN_ops_grid.to_csv(output_dir + 'NSTwn_ops_grid.tab', sep='\t')
-    NST_SC_ops_grid.to_csv(output_dir + 'NSTsc_ops_grid.tab', sep='\t')
+    for k, v in report_config_dict.items():
+        df = report_config_dict[k]["ops_grid"]
+        pth_ceid_ops_grid = output_dir / f'{k}_ops_grid'
+        df.to_csv(pth_ceid_ops_grid.with_suffix('.tab'), sep='\t', index=False)
 
     # Generate Report HTML Tables from Dataframes
     print("Creating Report HTML Tables...")
-    df_kst_report = Styler(KST_ops_grid,
-                           table_attributes="class='table table-striped cell-borders' style='width: 100%'",
-                           na_rep=" ") \
-        .map(style_cells, subset=kst_subset) \
-        .hide(axis="index") \
-        .to_html(table_uuid="kst")
+    for k, v in report_config_dict.items():
+        oper_grid = report_config_dict[k]["ops_grid"]
+        subset = report_config_dict[k]["subset"]
+        table_uuid = k.lower()
 
-    df_nstwa_report = Styler(NST_ops_grid,
-                             table_attributes="class='table table-striped' style='width: 100%'",
-                             na_rep=" ") \
-        .map(style_cells, subset=nst_subset) \
+        report = Styler(oper_grid,
+                        table_attributes="class='table table-striped cell-borders' style='width: 100%'",
+                        na_rep=" ") \
+        .map(style_cells, subset=subset) \
         .hide(axis="index") \
-        .to_html(table_uuid="nstwa")
+        .to_html(table_uuid=table_uuid)
 
-    df_nstwn_report = Styler(NST_WN_ops_grid,
-                             table_attributes="class='table table-striped' style='width: 100%'",
-                             na_rep=" ") \
-        .map(style_cells, subset=nstwn_subset) \
-        .hide(axis="index") \
-        .to_html(table_uuid="nstwn")
-
-    df_nstsc_report = Styler(NST_SC_ops_grid,
-                             table_attributes="class='table table-striped' style='width: 100%'",
-                             na_rep=" ") \
-        .map(style_cells, subset=nstsc_subset) \
-        .hide(axis="index") \
-        .to_html(table_uuid="nstsc")
-
+        report_config_dict[k]["report"] = report
 
     # Creating Difference Reports
     print("Checking for Differences in Oper Grids...")
-    df_kst_diffs = pd.read_csv(output_dir + "KST_diffs.tab", sep="\t")
-    df_nst_diffs = pd.read_csv(output_dir + "NSTwa_diffs.tab", sep="\t")
-    df_nstwn_diffs = pd.read_csv(output_dir + "NSTwn_diffs.tab", sep="\t")
-    df_nstsc_diffs = pd.read_csv(output_dir + "NSTsc_diffs.tab", sep="\t")
+    for k, v in report_config_dict.items():
+        try:
+            pth_ceid_diffs_df = output_dir / f"{k}_diffs"
+            df_diffs = pd.read_csv(pth_ceid_diffs_df.with_suffix('.tab'), sep="\t")
+        except (FileNotFoundError, EmptyDataError):
+            df_diffs = pd.DataFrame(columns=["Operation"])
+
+        report_config_dict[k]["diffs"] = df_diffs
 
     # Create Lists of Entities for Subset Parameter
-    if len(df_kst_diffs) != 0:
-        kst_diff_subset = [x for x in df_kst_diffs.columns if re.match("KST", x)]
-        kst_diff_check = [x for x in kst_diff_subset if "Old" in x]
-    else:
-        kst_diff_subset = []
-        kst_diff_check = []
-    if len(df_nst_diffs) != 0:
-        nst_diff_subset = [x for x in df_nst_diffs.columns if re.match("NST", x)]
-        nst_diff_check = [x for x in nst_diff_subset if "Old" in x]
-    else:
-        nst_diff_subset = []
-        nst_diff_check = []
-    if len(df_nstwn_diffs) != 0:
-        nstwn_diff_subset = [x for x in df_nstwn_diffs.columns if re.match("NST", x)]
-        nstwn_diff_check = [x for x in nstwn_diff_subset if "Old" in x]
-    else:
-        nstwn_diff_subset = []
-        nstwn_diff_check = []
-    if len(df_nstsc_diffs) != 0:
-        nstsc_diff_subset = [x for x in df_nstsc_diffs.columns if re.match("NST", x)]
-        nstsc_diff_check = [x for x in nstsc_diff_subset if "Old" in x]
-    else:
-        nstsc_diff_subset = []
-        nstsc_diff_check = []
+    for k, v in report_config_dict.items():
+        diffs = report_config_dict[k]["diffs"]
+        if len(diffs) != 0:
+            diff_subset = [x for x in diffs.columns if re.match(k, x)]
+            diff_check = [x for x in diff_subset if "Old" in x]
+        else:
+            diff_subset = []
+            diff_check = []
 
-    if len(df_kst_diffs) == 0 and len(df_nst_diffs) == 0 and len(df_nstwn_diffs) == 0 and len(df_nstsc_diffs) == 0:
+        report_config_dict[k]["diff_subset"] = diff_subset
+        report_config_dict[k]["diff_check"] = diff_check
+
+    diff_dfs = []
+    for k, v in report_config_dict.items():
+        diff_dfs.append(report_config_dict[k]["diffs"])
+
+    if all(len(df) == 0 for df in diff_dfs):
         df_changes_detected = pd.DataFrame().reset_index(drop=True)
         changes_detected = False
     else:
         df_changes_detected = pd.DataFrame([{'changes_detected': 'There are Changes Detected'}]).reset_index(drop=True)
         changes_detected = True
 
-    df_changes_detected.to_csv(output_dir + "OperGrid_Changes_Detected.tab", sep="\t")
+    pth_changes_detected = output_dir / "OperGrid_Changes_Detected"
+    df_changes_detected.to_csv(pth_changes_detected.with_suffix(".tab"), sep="\t")
 
     print("Creating Difference HTML Tables...")
-    df_kst_diff_report = Styler(df_kst_diffs,
-                                table_attributes="class='table table-striped cell-borders' style='width: 100%'",
-                                na_rep=" ") \
-        .map(style_cells, subset=kst_diff_subset) \
-        .map(style_cells_diffs, subset=kst_diff_check) \
+    for k, v in report_config_dict.items():
+        diffs = report_config_dict[k]["diffs"]
+        subset = report_config_dict[k]["diff_subset"]
+        check = report_config_dict[k]["diff_check"]
+        table_uuid = f"{k}_diffs"
+        diff_report = Styler(diffs,
+                             table_attributes="class='table table-striped cell-borders' style='width: 100%'",
+                             na_rep=" ") \
+        .map(style_cells, subset=subset) \
+        .map(style_cells_diffs, subset=check) \
         .hide(axis="index") \
-        .to_html(table_uuid="kst_diffs")
+        .to_html(table_uuid=table_uuid)
 
-    df_nst_diff_report = Styler(df_nst_diffs,
-                                table_attributes="class='table table-striped' style='width: 100%'",
-                                na_rep=" ") \
-        .map(style_cells, subset=nst_diff_subset) \
-        .map(style_cells_diffs, subset=nst_diff_check) \
-        .hide(axis="index") \
-        .to_html(table_uuid="nstwa_diffs")
-
-    df_nstwn_diff_report = Styler(df_nstwn_diffs,
-                                  table_attributes="class='table table-striped' style='width: 100%'",
-                                  na_rep=" ") \
-        .map(style_cells, subset=nstwn_diff_subset) \
-        .map(style_cells_diffs, subset=nstwn_diff_check) \
-        .hide(axis="index") \
-        .to_html(table_uuid="nstwn_diffs")
-
-    df_nstsc_diff_report = Styler(df_nstsc_diffs,
-                                  table_attributes="class='table table-striped' style='width: 100%'",
-                                  na_rep=" ") \
-        .map(style_cells, subset=nstsc_diff_subset) \
-        .map(style_cells_diffs, subset=nstsc_diff_check) \
-        .hide(axis="index") \
-        .to_html(table_uuid="nstsc_diffs")
+        report_config_dict[k]["diff_report"] = diff_report
 
     # Creating Lines Down Reports
+    ld_list = []
     print("Checking for Lines Down Operations...")
-    df_kst_ld = KST_ops_grid[KST_ops_grid["Paths Open"] == 0]["Operation"]
-    df_nst_ld = NST_ops_grid[NST_ops_grid["Paths Open"] == 0]["Operation"]
-    df_nstwn_ld = NST_WN_ops_grid[NST_WN_ops_grid["Paths Open"] == 0]["Operation"]
-    df_nstsc_ld = NST_SC_ops_grid[NST_SC_ops_grid["Paths Open"] == 0]["Operation"]
+    for k, v in report_config_dict.items():
+        df = report_config_dict[k]["ops_grid"]
+        df_ld = df[df["Paths Open"] == 0]["Operation"]
 
-    if len(df_kst_ld) != 0:
-        print("KST - Lines Down Operation Detected")
-    if len(df_nst_ld) != 0:
-        print("NSTwa - Lines Down Operation Detected")
-    if len(df_nstwn_ld) != 0:
-        print("NSTwn - Lines Down Operation Detected")
-    if len(df_nstsc_ld) != 0:
-        print("NSTsc - Lines Down Operation Detected")
+        report_config_dict[k]["ld"] = df_ld
 
-    if len(df_kst_ld) == 0 and len(df_nst_ld) == 0 and len(df_nstwn_ld) == 0 and len(df_nstsc_ld) == 0:
+        ld_list.append(df_ld)
+
+        if len(df_ld) != 0:
+            print(f"{k} - Lines Down Operation Detected")
+
+    if all(len(df_ld) == 0 for df_ld in ld_list):
         df_lines_down = pd.DataFrame().reset_index(drop=True)
     else:
         df_lines_down = pd.DataFrame([{'lines_down': 'There are Operations Lines Down'}]).reset_index(drop=True)
 
-    df_lines_down.to_csv(output_dir + "LinesDown_Operations.tab", sep="\t")
+    pth_df_lines_down = output_dir / "LinesDown_Operations"
+    df_lines_down.to_csv(pth_df_lines_down.with_suffix(".tab"), sep="\t")
 
     print("Creating Lines Down HTML Tables...")
-    df_kst_ld_report = Styler(df_kst_ld,
-                              table_attributes="class='table table-striped cell-borders' style='width: 50px'",
-                              na_rep=" ") \
-        .hide(axis="index") \
-        .to_html(table_uuid="kst_ld")
+    for k, v in report_config_dict.items():
+        df_ld = report_config_dict[k]["ld"]
+        table_uuid = f"{k}_ld"
 
-    df_nst_ld_report = Styler(df_nst_ld,
-                              table_attributes="class='table table-striped' style='width: 50px'",
-                              na_rep=" ") \
+        ld_report = Styler(df_ld,
+                           table_attributes="class='table table-striped cell-borders' style='width: 50px'",
+                           na_rep=" ") \
         .hide(axis="index") \
-        .to_html(table_uuid="nstwa_ld")
+        .to_html(table_uuid=table_uuid)
 
-    df_nstwn_ld_report = Styler(df_nstwn_ld,
-                                table_attributes="class='table table-striped' style='width: 50px'",
-                                na_rep=" ") \
-        .hide(axis="index") \
-        .to_html(table_uuid="nstwn_ld")
-
-    df_nstsc_ld_report = Styler(df_nstsc_ld,
-                                table_attributes="class='table table-striped' style='width: 50px'",
-                                na_rep=" ") \
-        .hide(axis="index") \
-        .to_html(table_uuid="nstsc_ld")
+        report_config_dict[k]["ld_report"] = ld_report
 
     # Creating HTML Config Dictionaries
-    KST_Output_Dict = {
-        "title": "KST Oper Grid",
-        "heading": "KST Oper Grid",
-        "table": df_kst_report,
-        "body_text": legend_table,
-        "file_name": "KST_OperGrid",
-        "table_id": "kst",
-        "caption": ""
-    }
 
-    NSTWA_Output_Dict = {
-        "title": "NSTwa Oper Grid",
-        "heading": "NSTwa/wp Oper Grid",
-        "table": df_nstwa_report,
-        "body_text": legend_table,
-        "file_name": "NSTwa_OperGrid",
-        "table_id": "nstwa",
-        "caption": ""
-    }
-
-    NSTWN_Output_Dict = {
-        "title": "NSTwn Oper Grid",
-        "heading": "NSTwn/pn Oper Grid",
-        "table": df_nstwn_report,
-        "body_text": legend_table,
-        "file_name": "NSTwn_OperGrid",
-        "table_id": "nstwn",
-        "caption": ""
-    }
-
-    NSTSC_Output_Dict = {
-        "title": "NSTsc Oper Grid",
-        "heading": "NSTsc Oper Grid",
-        "table": df_nstsc_report,
-        "body_text": legend_table,
-        "file_name": "NSTsc_OperGrid",
-        "table_id": "nstsc",
-        "caption": ""
-    }
+    output_dicts = {}
+    for k, v in report_config_dict.items():
+        table = report_config_dict[k]["report"]
+        table_id = k.lower()
+        output_dicts[k] = {
+            "title": f"{k} Oper Grid",
+            "heading": f"{k} Oper Grid",
+            "table": table,
+            "body_text": legend_table,
+            "file_name": f"{k}_OperGrid",
+            "table_id": table_id,
+            "caption": ""
+        }
 
     DIFFS_DICT = {
-        "file_name": "KNST_OperGrid_Diffs",
-        "title": "KNST Oper Grid Differences",
-        "heading": "KNST Oper Grid Differences",
-        "kst_table": df_kst_diff_report,
-        "nst_table": df_nst_diff_report,
-        "nstwn_table": df_nstwn_diff_report,
-        "nstsc_table": df_nstsc_diff_report,
+        "file_name": "OperGrid_Diffs",
+        "title": "Oper Grid Differences",
+        "heading": "Oper Grid Differences",
         "body_text": legend_table,
         "caption": "",
         "changes_detected": changes_detected,
         "table_ids": []
     }
 
+    for k, v in report_config_dict.items():
+        diff_table = report_config_dict[k]["diff_report"]
+        DIFFS_DICT[f"{k.lower()}_table"] = diff_table
+
     LINES_DOWN_DICT = {
-        "file_name": "KNST_Lines_Down_Operations",
-        "title": "KNST Lines Down Operations",
-        "heading": "KNST Lines Down Operations",
-        "kst_table": df_kst_ld_report,
-        "nst_table": df_nst_ld_report,
-        "nstwn_table": df_nstwn_ld_report,
-        "nstsc_table": df_nstsc_ld_report,
-        "body_text": "<p>The following operations are Lines Down for the KNST Module: </p>",
+        "file_name": "Lines_Down_Operations",
+        "title": "Lines Down Operations",
+        "heading": "Lines Down Operations",
+        "body_text": "<p>The following operations are Lines Down: </p>",
         "caption": ""
     }
 
+    for k, v in report_config_dict.items():
+        ld_table = report_config_dict[k]["ld_report"]
+        LINES_DOWN_DICT[f"{k.lower()}_table"] = ld_table
+
     # Update DIFFS DICT if DIFF DF's are Empty
-    if len(df_kst_diffs) != 0:
-        DIFFS_DICT["kst_table_head"] = "KST Oper Grid Deltas:"
-        DIFFS_DICT["table_ids"].append("kst_diffs")
-    else:
-        DIFFS_DICT["kst_table"] = ""
-    if len(df_nst_diffs) != 0:
-        DIFFS_DICT["nst_table_head"] = "NSTwa Oper Grid Deltas:"
-        DIFFS_DICT["table_ids"].append("nstwa_diffs")
-    else:
-        DIFFS_DICT["nst_table"] = ""
-    if len(df_nstwn_diffs) != 0:
-        DIFFS_DICT["nstwn_table_head"] = "NSTwn Oper Grid Deltas:"
-        DIFFS_DICT["table_ids"].append("nstwn_diffs")
-    else:
-        DIFFS_DICT["nstwn_table"] = ""
-    if len(df_nstsc_diffs) != 0:
-        DIFFS_DICT["nstsc_table_head"] = "NSTsc Oper Grid Deltas:"
-        DIFFS_DICT["table_ids"].append("nstsc_diffs")
-    else:
-        DIFFS_DICT["nstsc_table"] = ""
+    for k, v in report_config_dict.items():
+        diffs_df = report_config_dict[k]["diffs"]
+
+        if len(diffs_df) != 0:
+            DIFFS_DICT[f"{k.lower()}_table_head"] = f"{k} Oper Grid Deltas:"
+            DIFFS_DICT["table_ids"].append(f"{k.lower()}_diffs")
+        else:
+            DIFFS_DICT[f"{k.lower()}_table"] = ""
 
     # Update LINES DOWN DICT if LD DF's are Empty
-    if len(df_kst_ld) != 0:
-        LINES_DOWN_DICT["kst_table_head"] = "KST Lines Down Operations:"
-    else:
-        LINES_DOWN_DICT["kst_table"] = ""
-    if len(df_nst_ld) != 0:
-        LINES_DOWN_DICT["nst_table_head"] = "NSTwa Lines Down Operations:"
-    else:
-        LINES_DOWN_DICT["nst_table"] = ""
-    if len(df_nstwn_ld) != 0:
-        LINES_DOWN_DICT["nstwn_table_head"] = "NSTwn Lines Down Operations:"
-    else:
-        LINES_DOWN_DICT["nstwn_table"] = ""
-    if len(df_nstsc_ld) != 0:
-        LINES_DOWN_DICT["nstsc_table_head"] = "NSTsc Lines Down Operations:"
-    else:
-        LINES_DOWN_DICT["nstsc_table"] = ""
+    for k, v in report_config_dict.items():
+        ld_df = report_config_dict[k]["ld"]
+
+        if len(ld_df) != 0:
+            LINES_DOWN_DICT[f"{k.lower()}_table_head"] = f"{k} Lines Down Operations:"
+        else:
+            LINES_DOWN_DICT[f"{k.lower()}_table_head"] = ""
 
     # Generating Links Dictionary for NavBar
-    links = {
-        "kst_href": html_out_file + KST_Output_Dict["file_name"] + ".html",
-        "nstwa_href": html_out_file + NSTWA_Output_Dict["file_name"] + ".html",
-        "nstwn_href": html_out_file + NSTWN_Output_Dict["file_name"] + ".html",
-        "nstsc_href": html_out_file + NSTSC_Output_Dict["file_name"] + ".html",
-        "oper_grid_diffs_href": html_out_file + DIFFS_DICT["file_name"] + ".html"
-    }
+    links = {}
+
+    for ceid_dict in output_dicts:
+        href_base = html_out_file / output_dicts[ceid_dict]["file_name"]
+        href = href_base.with_suffix(".html")
+
+        links[f"{ceid_dict.lower()}_href"] = href
+
+    oper_grid_diffs_href_path = html_out_file / DIFFS_DICT["file_name"]
+    links.update({"oper_grid_diffs_href": oper_grid_diffs_href_path.with_suffix(".html")})
+
 
     # Writing output HTML Files with Ops Grid
     print("Writing HTML Output Files...")
-    # write_html_output(link_dict=links, custom_css=css, searchable=False, **HOME_Output_Dict)
-    write_html_output(link_dict=links, custom_css=css, searchable=True, **KST_Output_Dict)
-    write_html_output(link_dict=links, custom_css=css, searchable=True, **NSTWA_Output_Dict)
-    write_html_output(link_dict=links, custom_css=css, searchable=True, **NSTWN_Output_Dict)
-    write_html_output(link_dict=links, custom_css=css, searchable=True, **NSTSC_Output_Dict)
+
+    for k, v in output_dicts.items():
+        write_html_output(link_dict=links, custom_css=css, searchable=True, **output_dicts[k])
 
     write_diffs_html_output(link_dict=links, custom_css=css, **DIFFS_DICT)
     write_email_html_output(link_dict=links, custom_css=css, **LINES_DOWN_DICT)
+
+    print("Process Completed!")
 
 
 if __name__ == '__main__':
