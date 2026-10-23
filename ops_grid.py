@@ -41,17 +41,16 @@ class Toolset:
         self.model_map = {}
         self.path_variables = {}
 
-        match toolset:
-            case "BUR":
-                self.min_chamber_check = 2
-            case "KNST":
-                self.min_chamber_check = 6
-            case "XST":
-                self.min_chamber_check = 2
-            case "XRT":
-                self.min_chamber_check = 4
-            case _:
-                self.min_chamber_check = 6
+        if self.toolset == "BUR":
+            self.min_chamber_check = 2
+        elif self.toolset == "KNST":
+           self.min_chamber_check = 6
+        elif self.toolset == "XST":
+            self.min_chamber_check = 2
+        elif self.toolset == "XRT":
+           self.min_chamber_check = 4
+        else:
+            self.min_chamber_check = 6
 
     def get_model_map(self):
         if self.toolset not in self.toolset_selection:
