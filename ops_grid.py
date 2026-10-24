@@ -30,7 +30,7 @@ if len(sys.argv) > 1:
     module_selection = sys.argv[1]
     print(f"Setting Module Selection: {module_selection}")
 else:
-    module_selection = "XST"
+    module_selection = "KNST"
     print(f"Setting Default Module Selection: {module_selection}")
 
 
@@ -40,15 +40,16 @@ class Toolset:
         self.toolset_selection = ["BUR", "KNST", "XST", "XRT"]
         self.model_map = {}
         self.path_variables = {}
+        self.lot_hist_filter = {}
 
         if self.toolset == "BUR":
             self.min_chamber_check = 2
         elif self.toolset == "KNST":
-           self.min_chamber_check = 6
+            self.min_chamber_check = 6
         elif self.toolset == "XST":
             self.min_chamber_check = 2
         elif self.toolset == "XRT":
-           self.min_chamber_check = 4
+            self.min_chamber_check = 4
         else:
             self.min_chamber_check = 6
 
@@ -100,16 +101,14 @@ class Toolset:
                     "//azshfs.intel.com/AZAnalysis$/1278_MAODATA/Wet_Etch/BUR/Script_Output/xRT_BUR_Oper_Grid"),
                 "html_output_dir": Path(
                     "//azshfs.intel.com/AZAnalysis$/1278_MAODATA/Wet_Etch/BUR/Script_Output/xRT_BUR_Oper_Grid/Output_HTML"),
-                "html_out_file": Path(
-                    "https://azshweb.intel.com/AZAnalysis$/1278_MAODATA/Wet_Etch/BUR/Script_Output/xRT_BUR_Oper_Grid/Output_HTML")
+                "html_out_file":r"https://azshweb.intel.com/AZAnalysis$/1278_MAODATA/Wet_Etch/BUR/Script_Output/xRT_BUR_Oper_Grid/Output_HTML/"
             })
         elif self.toolset == "KNST":
             self.path_variables.update({
                 "output_dir": Path("//AZSHFS.intel.com/AZAnalysis$/1274_MAODATA/wet_etch/KNST/Script Output/OperGrid"),
                 "html_output_dir": Path(
                     "//AZSHFS.intel.com/AZAnalysis$/1274_MAODATA/wet_etch/KNST/Script Output/OperGrid/Output_HTML"),
-                "html_out_file": Path(
-                    "https://azshweb.intel.com/AZAnalysis$/1274_MAODATA/wet_etch/KNST/Script Output/OperGrid/Output_HTML")
+                "html_out_file": r"https://azshweb.intel.com/AZAnalysis$/1274_MAODATA/wet_etch/KNST/Script Output/OperGrid/Output_HTML/"
             })
         elif self.toolset == "XST":
             self.path_variables.update({
@@ -117,8 +116,7 @@ class Toolset:
                     "//AZSHFS.intel.com/AZAnalysis$/1274_MAODATA/wet_etch/EST_SST/Script Output/OperGrid"),
                 "html_output_dir": Path(
                     "//AZSHFS.intel.com/AZAnalysis$/1274_MAODATA/wet_etch/EST_SST/Script Output/OperGrid/Output_HTML"),
-                "html_out_file": Path(
-                    "https://azshweb.intel.com/AZAnalysis$/1274_MAODATA/wet_etch/EST_SST/Script Output/OperGrid/Output_HTML")
+                "html_out_file": r"https://azshweb.intel.com/AZAnalysis$/1274_MAODATA/wet_etch/EST_SST/Script Output/OperGrid/Output_HTML/"
             })
         elif self.toolset == "XRT":
             self.path_variables.update({
@@ -126,9 +124,39 @@ class Toolset:
                     "//azshfs.intel.com/AZAnalysis$/1278_MAODATA/Wet_Etch/BUR/Script_Output/xRT_BUR_Oper_Grid"),
                 "html_output_dir": Path(
                     "//azshfs.intel.com/AZAnalysis$/1278_MAODATA/Wet_Etch/BUR/Script_Output/xRT_BUR_Oper_Grid/Output_HTML"),
-                "html_out_file": Path(
-                    "https://azshweb.intel.com/AZAnalysis$/1278_MAODATA/Wet_Etch/BUR/Script_Output/xRT_BUR_Oper_Grid/Output_HTML")
+                "html_out_file": r"https://azshweb.intel.com/AZAnalysis$/1278_MAODATA/Wet_Etch/BUR/Script_Output/xRT_BUR_Oper_Grid/Output_HTML/"
             })
+        else:
+            print(f"Invalid Toolset")
+
+    def get_lot_hist_filter(self):
+        if self.toolset not in self.toolset_selection:
+            print(f"Invalid Toolset: {self.toolset} not in {self.toolset_selection}")
+        elif self.toolset == "BUR":
+            self.lot_hist_filter = {
+                'BURcu': True
+            }
+        elif self.toolset == "KNST":
+            self.lot_hist_filter = {
+                'NSTwa': True,
+                'NSTwn': True,
+                'KSTwa': False,
+                'NSTsc': False
+            }
+        elif self.toolset == "XST":
+            self.lot_hist_filter = {
+                'SST': True,
+                'EST': True,
+                'GST': True,
+                'EST53': True
+            }
+        elif self.toolset == "XRT":
+            self.lot_hist_filter = {
+                'DRTnb': True,
+                'DRTnc': True,
+                'DRTcb': True,
+                'DRTcu': True
+            }
         else:
             print(f"Invalid Toolset")
 
@@ -136,6 +164,7 @@ class Toolset:
 toolset = Toolset(module_selection)
 toolset.get_model_map()
 toolset.get_path_variables()
+toolset.get_lot_hist_filter()
 
 # Create path variables for testing / debugging
 if RUN_MODE == "DEBUG":
@@ -763,8 +792,13 @@ def create_oper_dict(setup_df: pd.DataFrame, lot_hist_df: pd.DataFrame) -> dict:
             prod = new_df['PRODUCT'].iloc[idx]
 
             # include AMCT defaults; do not limit to only recent lot history
-            if (route != '*') or (prod != '*'):
-                continue
+            filt_lot_hist = toolset.lot_hist_filter.get(ceid, True)
+            if filt_lot_hist:
+                if (oper not in lot_hist_df['OPERATION'].values) or (route != '*') or (prod != '*'):
+                    continue
+            else:
+                if (route != '*') or (prod != '*'):
+                    continue
 
             oper_list.setdefault(oper, (rec, ct_file, route, prod))
 
@@ -790,7 +824,8 @@ def create_oper_dict(setup_df: pd.DataFrame, lot_hist_df: pd.DataFrame) -> dict:
 
 
 # worker functions to carry out each check
-def check_ops_to_ent(oper: str, entity: str, ops_ent_df: pd.DataFrame, cc_df: pd.DataFrame) -> str:
+def check_ops_to_ent(oper: str, entity: str, ops_ent_df: pd.DataFrame, cc_df: pd.DataFrame,
+                     parent_assoc_set: set = None) -> str:
     """Check to see if op-to-entity association passed in system
 
     Args:
@@ -804,6 +839,9 @@ def check_ops_to_ent(oper: str, entity: str, ops_ent_df: pd.DataFrame, cc_df: pd
     """
     oper = str(oper).strip()
     entity = str(entity).strip()
+
+    if parent_assoc_set is not None:
+        return '' if (oper, entity) in parent_assoc_set else "O"
 
     # valid association only when parent entity itself is explicitly associated to the operation
     parent_assoc = ops_ent_df[
@@ -819,7 +857,7 @@ def check_ops_to_ent(oper: str, entity: str, ops_ent_df: pd.DataFrame, cc_df: pd
 
 
 def check_tool_filter(oper: str, entity: str, tf_df: pd.DataFrame, ceid: str, ceid_ct_files: pd.DataFrame,
-                      ceid_routes: pd.DataFrame) -> str:
+                      ceid_routes: pd.DataFrame, tf_rules: pd.DataFrame = None) -> str:
     """Check to see if op/ent combo is filtered out on AMCT Tool Filter
 
     Args:
@@ -833,12 +871,14 @@ def check_tool_filter(oper: str, entity: str, tf_df: pd.DataFrame, ceid: str, ce
     Returns:
         str: Empty if passed, A if locked out, S if SIF
     """
-    mapped_model = map_model(ceid)
     final_status = ''
-    new_df = tf_df.loc[
-        tf_df['MODEL_NAME'] == mapped_model, ['ROW_ORDER', 'OPERATION', 'ROUTE', 'ENTITY', 'LAYER', 'TOOL_ALLOWED']]
-
-    new_df["LAYER"] = new_df["LAYER"].fillna("*")
+    if tf_rules is None:
+        mapped_model = map_model(ceid)
+        new_df = tf_df.loc[
+            tf_df['MODEL_NAME'] == mapped_model, ['ROW_ORDER', 'OPERATION', 'ROUTE', 'ENTITY', 'LAYER', 'TOOL_ALLOWED']]
+        new_df["LAYER"] = new_df["LAYER"].fillna("*")
+    else:
+        new_df = tf_rules
 
     # still losing my mind
     for idx in range(new_df.shape[0]):
@@ -856,11 +896,20 @@ def check_tool_filter(oper: str, entity: str, tf_df: pd.DataFrame, ceid: str, ce
         if (curr_row == 1) or ('*72.*' in curr_route): continue
 
         # split entity and operation strings into sets
-        if '(' in curr_entities:
-            curr_entities = set(curr_entities[0:4].split('|') + id for id in curr_entities[4:-1].split('|'))
-        elif curr_entities != '*':
-            curr_entities = set(curr_entities.split('|'))
-        if curr_oper != '*': curr_oper = set(curr_oper.split('|'))
+        curr_entities = str(curr_entities).strip()
+        curr_oper = str(curr_oper).strip()
+
+        if curr_entities != '*':
+            match = re.fullmatch(r'([A-Z]+)\(([^)]+)\)', curr_entities)
+            if match:
+                entity_prefix = match.group(1)
+                entity_ids = [item.strip() for item in match.group(2).split('|') if item.strip()]
+                curr_entities = {f"{entity_prefix}{entity_id}" for entity_id in entity_ids}
+            else:
+                curr_entities = {item.strip() for item in curr_entities.split('|') if item.strip()}
+
+        if curr_oper != '*':
+            curr_oper = {item.strip() for item in curr_oper.split('|') if item.strip()}
 
         # oper and entity checks
         in_both = (entity in curr_entities) and (oper in curr_oper)
@@ -1537,14 +1586,32 @@ def main():
         Returns:
             dict: Nested dict in format: {ceid : {op : {entity : status}}}
         """
+        # precompute lookup structures to avoid repeating expensive DataFrame scans per op/tool pair
+        parent_assoc_set = {
+            (str(op).strip(), str(parent).strip())
+            for op, parent, ent in zip(df7['OPERATION'], df7['PARENT_ENTITY'], df7['ENTITY'])
+            if str(parent).strip() == str(ent).strip()
+        }
+
+        tf_rules_by_ceid = {}
+        for ceid in ceid_tools.keys():
+            mapped_model = map_model(ceid)
+            tf_rules = df4.loc[
+                df4['MODEL_NAME'] == mapped_model,
+                ['ROW_ORDER', 'OPERATION', 'ROUTE', 'ENTITY', 'LAYER', 'TOOL_ALLOWED']
+            ].copy()
+            tf_rules['LAYER'] = tf_rules['LAYER'].fillna('*')
+            tf_rules_by_ceid[ceid] = tf_rules
+
         op_ent_data = {}
         for ceid in ceid_tools.keys():
             op_ent_data[ceid] = {}
             for oper in ceid_oper[ceid]:
                 op_ent_data[ceid][oper] = {}
                 for tool in ceid_tools[ceid]:
-                    check_1 = check_ops_to_ent(oper, tool, df7, df6)
-                    check_2 = check_tool_filter(oper, tool, df4, ceid, ceid_ct_files, ceid_routes)
+                    check_1 = check_ops_to_ent(oper, tool, df7, df6, parent_assoc_set)
+                    check_2 = check_tool_filter(oper, tool, df4, ceid, ceid_ct_files, ceid_routes,
+                                                tf_rules_by_ceid[ceid])
                     check_3 = check_moqr(oper, tool, df3, df5)
                     check_4 = check_parent_cc(oper, tool, [df6, df9], ceid, ceid_oper, check_1)
                     check_5 = check_spr(tool, df5)
@@ -1940,13 +2007,13 @@ def main():
     links = {}
 
     for ceid_dict in output_dicts:
-        href_base = html_out_file / output_dicts[ceid_dict]["file_name"]
-        href = href_base.with_suffix(".html")
+        href_base = html_out_file + output_dicts[ceid_dict]["file_name"]
+        # href = href_base.with_suffix(".html")
 
-        links[f"{ceid_dict.lower()}_href"] = href
+        links[f"{ceid_dict.lower()}_href"] = href_base + ".html"
 
-    oper_grid_diffs_href_path = html_out_file / DIFFS_DICT["file_name"]
-    links.update({"oper_grid_diffs_href": oper_grid_diffs_href_path.with_suffix(".html")})
+    oper_grid_diffs_href_path = html_out_file + DIFFS_DICT["file_name"]
+    links.update({"oper_grid_diffs_href": oper_grid_diffs_href_path + ".html"})
 
 
     # Writing output HTML Files with Ops Grid
