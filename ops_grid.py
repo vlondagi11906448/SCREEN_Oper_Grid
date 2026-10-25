@@ -24,16 +24,158 @@ warnings.simplefilter(action='ignore', category=UserWarning)
 RUN_MODE = "PROD"
 # RUN_MODE = "DEBUG"
 
-# To run OperGrid for a different module, change the module selection below in the else block.
-# Must be one of the toolset labels configured in the Toolset clas toolset_selection variable
-# Currently configured for ["BUR", "KNST", "XST", "XRT"]
+# Toggle batch execution across multiple toolsets
+RUN_BATCH = True
+BATCH_MODULE_SELECTIONS = ["BUR", "KNST", "XST", "XRT"]
 
-if len(sys.argv) > 1:
-    module_selection = sys.argv[1]
-    print(f"Setting Module Selection: {module_selection}")
+# To run OperGrid for a different module, change the module selection below in the else block.
+# Must be one of the toolset labels configured in the TOOLSET_SELECTION variable
+# Currently configured for ["BUR", "KNST", "XST", "XRT"]
+if RUN_BATCH:
+    module_selection = BATCH_MODULE_SELECTIONS[0]
+    print(f"RUN_BATCH enabled. Skipping single module selection. Using {module_selection} for initial context.")
 else:
-    module_selection = "XST"
-    print(f"Setting Default Module Selection: {module_selection}")
+    if len(sys.argv) > 1:
+        module_selection = sys.argv[1]
+        print(f"Setting Module Selection: {module_selection}")
+    else:
+        module_selection = "XST"
+        print(f"Setting Default Module Selection: {module_selection}")
+
+TOOLSET_SELECTION = ["BUR", "KNST", "XST", "XRT"]
+
+COMMON_WEB_PATHS = {
+    "bootstrap_css": "https://azshweb.intel.com/AZAnalysis$/1274_MAODATA/Config/wet_etch/KNST/configs/Bootstrap/bootstrap5_dist/css/bootstrap.min.css",
+    "bootstrap_js": "https://azshweb.intel.com/AZAnalysis$/1274_MAODATA/Config/wet_etch/KNST/configs/Bootstrap/bootstrap5_dist/js/bootstrap.bundle.js",
+    "datatables_dir": "https://azshweb.intel.com/AZAnalysis$/1274_MAODATA/Config/wet_etch/KNST/configs/DataTables_Plugin/"
+}
+
+DEBUG_PATHS = {
+    "out_path": Path("C:/Users/vlondagi/source/repos/SCREEN_Oper_Grid/Script_Output"),
+    "output_dir": Path("C:/Users/vlondagi/source/repos/SCREEN_Oper_Grid/Script_Output"),
+    "html_output_dir": Path("C:/Users/vlondagi/source/repos/SCREEN_Oper_Grid/Script_Output/Output_HTML"),
+    "html_out_file": r"C:/Users/vlondagi/source/repos/SCREEN_Oper_Grid/Script_Output/Output_HTML/"
+}
+
+TOOLSET_CONFIG = {
+    "BUR": {
+        "min_chamber_check": 2,
+        "attributes": ["AdhocMon90", "MOQRestrict"],
+        "recipe_col": "recipe_name",
+        "model_map": {
+            "BURcu": "BUR_CU_F3"
+        },
+        "lot_hist_filter": {
+            "BURcu": True
+        },
+        "prod_paths": {
+            "output_dir": Path("//azshfs.intel.com/AZAnalysis$/1278_MAODATA/Wet_Etch/BUR/Script_Output/xRT_BUR_Oper_Grid"),
+            "html_output_dir": Path("//azshfs.intel.com/AZAnalysis$/1278_MAODATA/Wet_Etch/BUR/Script_Output/xRT_BUR_Oper_Grid/Output_HTML"),
+            "html_out_file": r"https://azshweb.intel.com/AZAnalysis$/1278_MAODATA/Wet_Etch/BUR/Script_Output/xRT_BUR_Oper_Grid/Output_HTML/"
+        }
+    },
+    "KNST": {
+        "min_chamber_check": 6,
+        "attributes": ["AdhocMon90", "MOQRestrict"],
+        "recipe_col": "recipe_name",
+        "model_map": {
+            "NSTwa": "NST_F3",
+            "NSTwn": "NST_WN_F3",
+            "KSTwa": "KST_F3",
+            "NSTsc": "NST_SC_F3"
+        },
+        "lot_hist_filter": {
+            "NSTwa": True,
+            "NSTwn": True,
+            "KSTwa": False,
+            "NSTsc": False
+        },
+        "prod_paths": {
+            "output_dir": Path("//AZSHFS.intel.com/AZAnalysis$/1274_MAODATA/wet_etch/KNST/Script Output/OperGrid"),
+            "html_output_dir": Path("//AZSHFS.intel.com/AZAnalysis$/1274_MAODATA/wet_etch/KNST/Script Output/OperGrid/Output_HTML"),
+            "html_out_file": r"https://azshweb.intel.com/AZAnalysis$/1274_MAODATA/wet_etch/KNST/Script Output/OperGrid/Output_HTML/"
+        }
+    },
+    "XST": {
+        "min_chamber_check": 2,
+        "attributes": ["AdhocMon90", "MOQRestrict"],
+        "recipe_col": "recipe_name",
+        "model_map": {
+            "SST": "SST_F3",
+            "EST": "EST_F3",
+            "GST": "GST_F3_SCNET",
+            "EST53": "EST_F3_SCNET_NSD"
+        },
+        "lot_hist_filter": {
+            "SST": True,
+            "EST": True,
+            "GST": True,
+            "EST53": True
+        },
+        "prod_paths": {
+            "output_dir": Path("//AZSHFS.intel.com/AZAnalysis$/1274_MAODATA/wet_etch/EST_SST/Script Output/OperGrid"),
+            "html_output_dir": Path("//AZSHFS.intel.com/AZAnalysis$/1274_MAODATA/wet_etch/EST_SST/Script Output/OperGrid/Output_HTML"),
+            "html_out_file": r"https://azshweb.intel.com/AZAnalysis$/1274_MAODATA/wet_etch/EST_SST/Script Output/OperGrid/Output_HTML/"
+        }
+    },
+    "XRT": {
+        "min_chamber_check": 4,
+        "attributes": ["MOQRestrict"],
+        "recipe_col": "recipe",
+        "model_map": {
+            "DRTnb": "DRT_FE_BV_F3",
+            "DRTnc": "DRT_FE_F3",
+            "DRTcb": "DRT_BE_BV_F3",
+            "DRTcu": "DRT_BE_F3"
+        },
+        "lot_hist_filter": {
+            "DRTnb": True,
+            "DRTnc": True,
+            "DRTcb": True,
+            "DRTcu": True
+        },
+        "prod_paths": {
+            "output_dir": Path("//azshfs.intel.com/AZAnalysis$/1278_MAODATA/Wet_Etch/BUR/Script_Output/xRT_BUR_Oper_Grid"),
+            "html_output_dir": Path("//azshfs.intel.com/AZAnalysis$/1278_MAODATA/Wet_Etch/BUR/Script_Output/xRT_BUR_Oper_Grid/Output_HTML"),
+            "html_out_file": r"https://azshweb.intel.com/AZAnalysis$/1278_MAODATA/Wet_Etch/BUR/Script_Output/xRT_BUR_Oper_Grid/Output_HTML/"
+        }
+    }
+}
+
+
+class Toolset:
+    def __init__(self, toolset):
+        self.toolset = toolset
+        self.toolset_selection = TOOLSET_SELECTION
+        self.model_map = {}
+        self.path_variables = {}
+        self.lot_hist_filter = {}
+        config = TOOLSET_CONFIG.get(self.toolset, {})
+        self.min_chamber_check = config.get("min_chamber_check", 6)
+        self.attributes = config.get("attributes", ["AdhocMon90", "MOQRestrict"])
+        self.recipe_col = config.get("recipe_col", "recipe_name")
+
+    def get_model_map(self):
+        if self.toolset not in self.toolset_selection:
+            print(f"Invalid Toolset: {self.toolset} not in {self.toolset_selection}")
+            return
+        self.model_map = dict(TOOLSET_CONFIG.get(self.toolset, {}).get("model_map", {}))
+
+    def get_path_variables(self):
+        self.path_variables.update(COMMON_WEB_PATHS)
+        if RUN_MODE == "DEBUG":
+            self.path_variables.update(DEBUG_PATHS)
+        else:
+            if self.toolset not in self.toolset_selection:
+                print(f"Invalid Toolset: {self.toolset} not in {self.toolset_selection}")
+            else:
+                self.path_variables.update(TOOLSET_CONFIG.get(self.toolset, {}).get("prod_paths", {}))
+
+    def get_lot_hist_filter(self):
+        if self.toolset not in self.toolset_selection:
+            print(f"Invalid Toolset: {self.toolset} not in {self.toolset_selection}")
+        else:
+            self.lot_hist_filter = dict(TOOLSET_CONFIG.get(self.toolset, {}).get("lot_hist_filter", {}))
 
 
 class DebuggingLogger:
@@ -100,182 +242,43 @@ class DebuggingLogger:
 dbg = DebuggingLogger(run_mode=RUN_MODE)
 
 
-class Toolset:
-    def __init__(self, toolset):
-        self.toolset = toolset
-        self.toolset_selection = ["BUR", "KNST", "XST", "XRT"]
-        self.model_map = {}
-        self.path_variables = {}
-        self.lot_hist_filter = {}
-        self.attributes = []
-        self.recipe_col = ''
+def initialize_module(module_name: str):
+    global module_selection, toolset
+    global output_dir, html_output_dir, html_out_file, bootstrap_css, bootstrap_js, datatables_dir
+    global datatables_plugin, datatables_bootstrap_plugin, jquery
+    global fixed_columns_js, fixed_columns_bs_js, fixed_columns_css, fixed_columns_bs_css
+    global am_model_map, ceid_list, entity_prefix_map, entity_prefixes
 
-        if self.toolset == "BUR":
-            self.min_chamber_check = 2
-            self.attributes = ["AdhocMon90", "MOQRestrict"]
-            self.recipe_col = "recipe_name"
-        elif self.toolset == "KNST":
-            self.min_chamber_check = 6
-            self.attributes = ["AdhocMon90", "MOQRestrict"]
-            self.recipe_col = "recipe_name"
-        elif self.toolset == "XST":
-            self.min_chamber_check = 2
-            self.attributes = ["AdhocMon90", "MOQRestrict"]
-            self.recipe_col = "recipe_name"
-        elif self.toolset == "XRT":
-            self.min_chamber_check = 4
-            self.attributes = ["MOQRestrict"]
-            self.recipe_col = "recipe"
-        else:
-            self.min_chamber_check = 6
-            self.attributes = ["AdhocMon90", "MOQRestrict"]
-            self.recipe_col = 'recipe_name'
+    module_selection = module_name
+    print(f"Setting Module Selection: {module_selection}")
 
-    def get_model_map(self):
-        if self.toolset not in self.toolset_selection:
-            print(f"Invalid Toolset: {self.toolset} not in {self.toolset_selection}")
-        elif self.toolset == "BUR":
-            self.model_map = {
-                'BURcu': 'BUR_CU_F3'
-            }
-        elif self.toolset == "KNST":
-            self.model_map = {
-                'NSTwa': 'NST_F3',
-                'NSTwn': 'NST_WN_F3',
-                'KSTwa': 'KST_F3',
-                'NSTsc': 'NST_SC_F3'
-            }
-        elif self.toolset == "XST":
-            self.model_map = {
-                'SST': 'SST_F3',
-                'EST': 'EST_F3',
-                'GST': 'GST_F3_SCNET',
-                'EST53': 'EST_F3_SCNET_NSD'
-            }
-        elif self.toolset == "XRT":
-            self.model_map = {
-                'DRTnb': 'DRT_FE_BV_F3',
-                'DRTnc': 'DRT_FE_F3',
-                'DRTcb': 'DRT_BE_BV_F3',
-                'DRTcu': 'DRT_BE_F3'
-            }
-        else:
-            print(f"Invalid Toolset")
+    toolset = Toolset(module_selection)
+    toolset.get_model_map()
+    toolset.get_path_variables()
+    toolset.get_lot_hist_filter()
 
-    def get_path_variables(self):
-        self.path_variables.update({
-                "bootstrap_css":
-                    "https://azshweb.intel.com/AZAnalysis$/1274_MAODATA/Config/wet_etch/KNST/configs/Bootstrap/bootstrap5_dist/css/bootstrap.min.css",
-                "bootstrap_js":
-                    "https://azshweb.intel.com/AZAnalysis$/1274_MAODATA/Config/wet_etch/KNST/configs/Bootstrap/bootstrap5_dist/js/bootstrap.bundle.js",
-                "datatables_dir":
-                    "https://azshweb.intel.com/AZAnalysis$/1274_MAODATA/Config/wet_etch/KNST/configs/DataTables_Plugin/"
-            })
-        if RUN_MODE == "DEBUG":
-            self.path_variables.update({
-                "out_path": Path("C:/Users/vlondagi/source/repos/SCREEN_Oper_Grid/Script_Output"),
-                "output_dir": Path("C:/Users/vlondagi/source/repos/SCREEN_Oper_Grid/Script_Output"),
-                "html_output_dir": Path("C:/Users/vlondagi/source/repos/SCREEN_Oper_Grid/Script_Output/Output_HTML"),
-                "html_out_file": r"C:/Users/vlondagi/source/repos/SCREEN_Oper_Grid/Script_Output/Output_HTML/"
-            })
-        else:
-            if self.toolset not in self.toolset_selection:
-                print(f"Invalid Toolset: {self.toolset} not in {self.toolset_selection}")
-            elif self.toolset == "BUR":
-                self.path_variables.update({
-                    "output_dir": Path(
-                        "//azshfs.intel.com/AZAnalysis$/1278_MAODATA/Wet_Etch/BUR/Script_Output/xRT_BUR_Oper_Grid"),
-                    "html_output_dir": Path(
-                        "//azshfs.intel.com/AZAnalysis$/1278_MAODATA/Wet_Etch/BUR/Script_Output/xRT_BUR_Oper_Grid/Output_HTML"),
-                    "html_out_file":r"https://azshweb.intel.com/AZAnalysis$/1278_MAODATA/Wet_Etch/BUR/Script_Output/xRT_BUR_Oper_Grid/Output_HTML/"
-                })
-            elif self.toolset == "KNST":
-                self.path_variables.update({
-                    "output_dir": Path("//AZSHFS.intel.com/AZAnalysis$/1274_MAODATA/wet_etch/KNST/Script Output/OperGrid"),
-                    "html_output_dir": Path(
-                        "//AZSHFS.intel.com/AZAnalysis$/1274_MAODATA/wet_etch/KNST/Script Output/OperGrid/Output_HTML"),
-                    "html_out_file": r"https://azshweb.intel.com/AZAnalysis$/1274_MAODATA/wet_etch/KNST/Script Output/OperGrid/Output_HTML/"
-                })
-            elif self.toolset == "XST":
-                self.path_variables.update({
-                    "output_dir": Path(
-                        "//AZSHFS.intel.com/AZAnalysis$/1274_MAODATA/wet_etch/EST_SST/Script Output/OperGrid"),
-                    "html_output_dir": Path(
-                        "//AZSHFS.intel.com/AZAnalysis$/1274_MAODATA/wet_etch/EST_SST/Script Output/OperGrid/Output_HTML"),
-                    "html_out_file": r"https://azshweb.intel.com/AZAnalysis$/1274_MAODATA/wet_etch/EST_SST/Script Output/OperGrid/Output_HTML/"
-                })
-            elif self.toolset == "XRT":
-                self.path_variables.update({
-                    "output_dir": Path(
-                        "//azshfs.intel.com/AZAnalysis$/1278_MAODATA/Wet_Etch/BUR/Script_Output/xRT_BUR_Oper_Grid"),
-                    "html_output_dir": Path(
-                        "//azshfs.intel.com/AZAnalysis$/1278_MAODATA/Wet_Etch/BUR/Script_Output/xRT_BUR_Oper_Grid/Output_HTML"),
-                    "html_out_file": r"https://azshweb.intel.com/AZAnalysis$/1278_MAODATA/Wet_Etch/BUR/Script_Output/xRT_BUR_Oper_Grid/Output_HTML/"
-                })
-            else:
-                print(f"Invalid Toolset")
+    output_dir = toolset.path_variables.get("output_dir", "")
+    html_output_dir = toolset.path_variables.get("html_output_dir", "")
+    html_out_file = toolset.path_variables.get("html_out_file", "")
+    bootstrap_css = toolset.path_variables.get("bootstrap_css", "")
+    bootstrap_js = toolset.path_variables.get("bootstrap_js", "")
+    datatables_dir = toolset.path_variables.get("datatables_dir", "")
 
-    def get_lot_hist_filter(self):
-        if self.toolset not in self.toolset_selection:
-            print(f"Invalid Toolset: {self.toolset} not in {self.toolset_selection}")
-        elif self.toolset == "BUR":
-            self.lot_hist_filter = {
-                'BURcu': True
-            }
-        elif self.toolset == "KNST":
-            self.lot_hist_filter = {
-                'NSTwa': True,
-                'NSTwn': True,
-                'KSTwa': False,
-                'NSTsc': False
-            }
-        elif self.toolset == "XST":
-            self.lot_hist_filter = {
-                'SST': True,
-                'EST': True,
-                'GST': True,
-                'EST53': True
-            }
-        elif self.toolset == "XRT":
-            self.lot_hist_filter = {
-                'DRTnb': True,
-                'DRTnc': True,
-                'DRTcb': True,
-                'DRTcu': True
-            }
-        else:
-            print(f"Invalid Toolset")
+    datatables_plugin = datatables_dir + "datatables.min.js"
+    datatables_bootstrap_plugin = datatables_dir + "Datatables-1.13.5/css/dataTables.bootstrap5.min.css"
+    jquery = datatables_dir + "jQuery-3.7.0/jquery-3.7.0.min.js"
+    fixed_columns_js = datatables_dir + "FixedColumns-4.3.0/js/dataTables.fixedColumns.min.js"
+    fixed_columns_bs_js = datatables_dir + "FixedColumns-4.3.0/js/fixedColumns.bootstrap5.min.js"
+    fixed_columns_css = datatables_dir + "FixedColumns-4.3.0/css/fixedColumns.dataTables.min.css"
+    fixed_columns_bs_css = datatables_dir + "FixedColumns-4.3.0/css/fixedColumns.bootstrap5.min.css"
+
+    am_model_map = toolset.model_map
+    ceid_list = [k for k in am_model_map.keys()]
+    entity_prefix_map = {ceid: re.match(r'[A-Z]+', ceid).group(0) for ceid in ceid_list}
+    entity_prefixes = sorted(set(entity_prefix_map.values()))
 
 
-toolset = Toolset(module_selection)
-toolset.get_model_map()
-toolset.get_path_variables()
-toolset.get_lot_hist_filter()
-
-# Create path variables for testing / debugging
-
-output_dir = toolset.path_variables.get("output_dir", "")
-html_output_dir = toolset.path_variables.get("html_output_dir", "")
-html_out_file = toolset.path_variables.get("html_out_file", "")
-bootstrap_css = toolset.path_variables.get("bootstrap_css", "")
-bootstrap_js = toolset.path_variables.get("bootstrap_js", "")
-datatables_dir = toolset.path_variables.get("datatables_dir", "")
-
-# Configuring Directories for Web Pages
-datatables_plugin = datatables_dir + "datatables.min.js"
-datatables_bootstrap_plugin = datatables_dir + "Datatables-1.13.5/css/dataTables.bootstrap5.min.css"
-jquery = datatables_dir + "jQuery-3.7.0/jquery-3.7.0.min.js"
-fixed_columns_js = datatables_dir + "FixedColumns-4.3.0/js/dataTables.fixedColumns.min.js"
-fixed_columns_bs_js = datatables_dir + "FixedColumns-4.3.0/js/fixedColumns.bootstrap5.min.js"
-fixed_columns_css = datatables_dir + "FixedColumns-4.3.0/css/fixedColumns.dataTables.min.css"
-fixed_columns_bs_css = datatables_dir + "FixedColumns-4.3.0/css/fixedColumns.bootstrap5.min.css"
-
-am_model_map = toolset.model_map
-
-ceid_list = [k for k in am_model_map.keys()]
-
-entity_prefix_map = {ceid: re.match(r'[A-Z]+', ceid).group(0) for ceid in ceid_list}
-entity_prefixes = sorted(set(entity_prefix_map.values()))
+initialize_module(module_selection)
 
 
 def get_all_keys(nested_dict):
@@ -306,10 +309,9 @@ def get_nested_dict_vals(data, search_str, not_in_str: list = []):
 
 
 # worker functions to simplify backend code
-def map_model(ceid: str, model_ceid_map: dict = am_model_map) -> str:
+def map_model(ceid: str, model_ceid_map: dict = None) -> str:
     '''
     Returns the corresponding modelname for a given CEID.
-    Only configured for NSTwa, NSTwn, and KSTwa modelnames. (NST_F3, NST_WN_F3, KST_F3, NST_SC_F3)
 
     Args:
         ceid (str): The CEID value to be mapped
@@ -318,7 +320,8 @@ def map_model(ceid: str, model_ceid_map: dict = am_model_map) -> str:
         str: The modelname for the CEID value
     '''
 
-    return model_ceid_map[ceid]
+    active_model_map = am_model_map if model_ceid_map is None else model_ceid_map
+    return active_model_map[ceid]
 
 
 def query_db(db_num: int) -> pd.DataFrame:
@@ -1231,6 +1234,43 @@ legend_list = f"""
 </div>
 """
 
+
+def build_nav_links(link_dict):
+    return [
+        f'<li class="nav-item">\n\t <a class="navbar-brand" href="{val}">{key.split("_")[0].upper()}</a> \n\t</li>'
+        for key, val in link_dict.items()
+        if "oper" not in str(key)
+    ]
+
+
+def build_data_tables_script(table_ids, options):
+    custom_script = ""
+    for table_id in table_ids:
+        custom_script += f"""
+                <script>
+                new DataTable("#T_{table_id}", {options});
+                </script>
+                """
+    return custom_script
+
+
+def build_table_divs(table_items):
+    table_divs = []
+    for table_html, head, caption in table_items:
+        table_div = f"""
+                <div class="table-div">
+                    <div class="table-head">
+                        <h3>{head}</h3>
+                    </div>
+                        {table_html}
+                    <div class="table-caption">
+                        <p>{caption}</p>
+                    </div>
+                </div>
+            """
+        table_divs.append(table_div)
+    return table_divs
+
 legend_table = f"""
 <div class="body-div">
     <h4><strong>LEGEND:</strong></h2>
@@ -1269,7 +1309,7 @@ legend_table = f"""
 
 
 def write_html_output(link_dict, custom_css, searchable=True, **kwargs):
-    nav_links = [f'<li class="nav-item">\n\t <a class="navbar-brand" href="{val}">{key.split("_")[0].upper()}</a> \n\t</li>' for key, val in link_dict.items() if "oper" not in str(key)]
+    nav_links = build_nav_links(link_dict)
     oper_grid_diffs_link = link_dict["oper_grid_diffs_href"]
     oper_lines_down_link = link_dict.get("oper_lines_down_href", "")
     title = kwargs["title"]
@@ -1297,14 +1337,7 @@ def write_html_output(link_dict, custom_css, searchable=True, **kwargs):
             aLengthMenu: [[10,25,50,100,-1], [10,25,50,100,"All"]],
         }"""
 
-    if searchable:
-        custom_script = f"""
-        <script>
-        new DataTable("#T_{table_id}", {data_tables_options});
-        </script>
-        """
-    else:
-        custom_script = ""
+    custom_script = build_data_tables_script([table_id], data_tables_options) if searchable else ""
 
     if "table_head" in kwargs.keys():
         table_head = kwargs["table_head"]
@@ -1374,7 +1407,7 @@ def write_html_output(link_dict, custom_css, searchable=True, **kwargs):
 
 
 def write_email_html_output(link_dict, custom_css, **kwargs):
-    nav_links = [f'<li class="nav-item">\n\t <a class="navbar-brand" href="{val}">{key.split("_")[0].upper()}</a> \n\t</li>' for key, val in link_dict.items() if "oper" not in str(key)]
+    nav_links = build_nav_links(link_dict)
     filename = kwargs.get("file_name", "DEFAULT")
     output_file = html_output_dir / filename
     title = kwargs.get("title")
@@ -1383,7 +1416,6 @@ def write_email_html_output(link_dict, custom_css, **kwargs):
     oper_grid_link = next(iter(link_dict.values()), None)
 
     table_div_items = []
-    table_divs = []
     for ceid in ceid_list:
         tbl = kwargs.get(f"{ceid}_table")
         head = kwargs.get(f"{ceid}_table_head", "")
@@ -1393,20 +1425,7 @@ def write_email_html_output(link_dict, custom_css, **kwargs):
 
         table_div_items.append(temp)
 
-    for div in table_div_items:
-        table_div = f"""
-            <div class="table-div">
-                <div class="table-head">
-                    <h3>{div[0]}</h3>
-                </div>
-                    {div[1]}
-                <div class="table-caption">
-                    <p>{div[2]}</p>
-                </div>
-            </div>
-        """
-
-        table_divs.append(table_div)
+    table_divs = build_table_divs(table_div_items)
 
     updated_date = datetime.strftime(datetime.today(), '%Y-%m-%d %H:%M:%S')
 
@@ -1445,7 +1464,7 @@ def write_email_html_output(link_dict, custom_css, **kwargs):
 
 
 def write_diffs_html_output(link_dict, custom_css, searchable=True, **kwargs):
-    nav_links = [f'<li class="nav-item">\n\t <a class="navbar-brand" href="{val}">{key.split("_")[0].upper()}</a> \n\t</li>' for key, val in link_dict.items() if "oper" not in str(key)]
+    nav_links = build_nav_links(link_dict)
     filename = kwargs.get("file_name", "DEFAULT")
     output_file = html_output_dir / filename
     title = module_selection + " " + kwargs.get("title")
@@ -1459,7 +1478,6 @@ def write_diffs_html_output(link_dict, custom_css, searchable=True, **kwargs):
         body_text = """<h2><strong>No Changes Detected</strong></h2>"""
 
     table_div_items = []
-    table_divs = []
     for ceid in ceid_list:
         tbl = kwargs.get(f"{ceid}_table")
         head = kwargs.get(f"{ceid}_table_head", "")
@@ -1469,21 +1487,7 @@ def write_diffs_html_output(link_dict, custom_css, searchable=True, **kwargs):
             temp = [tbl, head, cap]
 
             table_div_items.append(temp)
-
-    for div in table_div_items:
-        table_div = f"""
-                <div class="table-div">
-                    <div class="table-head">
-                        <h3>{div[1]}</h3>
-                    </div>
-                        {div[0]}
-                    <div class="table-caption">
-                        <p>{div[2]}</p>
-                    </div>
-                </div>
-            """
-
-        table_divs.append(table_div)
+    table_divs = build_table_divs(table_div_items)
 
     updated_date = datetime.strftime(datetime.today(), '%Y-%m-%d %H:%M:%S')
     table_ids = kwargs.get("table_ids", [])
@@ -1503,16 +1507,7 @@ def write_diffs_html_output(link_dict, custom_css, searchable=True, **kwargs):
                 aLengthMenu: [[10,25,50,100,-1], [10,25,50,100,"All"]],
             }"""
 
-    custom_script = ""
-    if searchable:
-        for table_id in table_ids:
-            custom_script += f"""
-                <script>
-                new DataTable("#T_{table_id}", {data_tables_options});
-                </script>
-                """
-    else:
-        custom_script = ""
+    custom_script = build_data_tables_script(table_ids, data_tables_options) if searchable else ""
 
     html_text = f"""
 
@@ -1570,7 +1565,7 @@ def write_diffs_html_output(link_dict, custom_css, searchable=True, **kwargs):
 
 
 def write_lines_down_html_output(link_dict, custom_css, searchable=True, **kwargs):
-    nav_links = [f'<li class="nav-item">\n\t <a class="navbar-brand" href="{val}">{key.split("_")[0].upper()}</a> \n\t</li>' for key, val in link_dict.items() if "oper" not in str(key)]
+    nav_links = build_nav_links(link_dict)
     filename = kwargs.get("file_name", "DEFAULT")
     output_file = html_output_dir / filename
     title = module_selection + " " + kwargs.get("title")
@@ -1585,7 +1580,6 @@ def write_lines_down_html_output(link_dict, custom_css, searchable=True, **kwarg
         body_text = """<h2><strong>No Lines Down Operations Detected</strong></h2>"""
 
     table_div_items = []
-    table_divs = []
     for ceid in ceid_list:
         tbl = kwargs.get(f"{ceid.lower()}_table")
         head = kwargs.get(f"{ceid.lower()}_table_head", "")
@@ -1595,20 +1589,7 @@ def write_lines_down_html_output(link_dict, custom_css, searchable=True, **kwarg
             temp = [tbl, head, cap]
             table_div_items.append(temp)
 
-    for div in table_div_items:
-        table_div = f"""
-                 <div class="table-div">
-                     <div class="table-head">
-                         <h3>{div[1]}</h3>
-                     </div>
-                         {div[0]}
-                     <div class="table-caption">
-                         <p>{div[2]}</p>
-                     </div>
-                 </div>
-            """
-
-        table_divs.append(table_div)
+    table_divs = build_table_divs(table_div_items)
 
     updated_date = datetime.strftime(datetime.today(), '%Y-%m-%d %H:%M:%S')
     table_ids = kwargs.get("table_ids", [])
@@ -1628,14 +1609,7 @@ def write_lines_down_html_output(link_dict, custom_css, searchable=True, **kwarg
                 aLengthMenu: [[10,25,50,100,-1], [10,25,50,100,"All"]],
             }"""
 
-    custom_script = ""
-    if searchable:
-        for table_id in table_ids:
-            custom_script += f"""
-                <script>
-                new DataTable("#T_{table_id}", {data_tables_options});
-                </script>
-                """
+    custom_script = build_data_tables_script(table_ids, data_tables_options) if searchable else ""
 
     html_text = f"""
 
@@ -2200,5 +2174,21 @@ def main():
     print("Process Completed!")
 
 
+def run_batch(modules: list = None):
+    module_list = modules if modules is not None else BATCH_MODULE_SELECTIONS
+    for module_name in module_list:
+        if module_name not in TOOLSET_SELECTION:
+            print(f"Skipping invalid module selection: {module_name}")
+            continue
+        print(f"\n===== Starting batch run for {module_name} =====")
+        initialize_module(module_name)
+        main()
+        print(f"===== Completed batch run for {module_name} =====\n")
+
+
 if __name__ == '__main__':
-    main()
+    if RUN_BATCH:
+        run_batch()
+    else:
+        initialize_module(module_selection)
+        main()
