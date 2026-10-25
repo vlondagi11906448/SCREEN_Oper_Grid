@@ -25,7 +25,7 @@ RUN_MODE = "PROD"
 # RUN_MODE = "DEBUG"
 
 # Toggle batch execution across multiple toolsets
-RUN_BATCH = True
+RUN_BATCH = False
 BATCH_MODULE_SELECTIONS = ["BUR", "KNST", "XST", "XRT"]
 
 # To run OperGrid for a different module, change the module selection below in the else block.
@@ -847,7 +847,7 @@ def create_oper_dict(setup_df: pd.DataFrame, lot_hist_df: pd.DataFrame) -> dict:
     for ceid in ceid_list:
         ceid_oper[ceid] = find_oper_list(ceid)
 
-        print(ceid_oper[ceid])
+        print(f"CEID: {ceid_oper[ceid]}")
 
     return ceid_oper
 
