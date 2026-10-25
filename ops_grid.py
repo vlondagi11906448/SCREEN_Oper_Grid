@@ -4,7 +4,6 @@ import numpy as np
 import os
 import re
 import sys
-import argparse
 import warnings
 from pandas.errors import EmptyDataError
 from pandas.io.formats.style import Styler
@@ -20,7 +19,10 @@ pd.options.display.width = 0
 # suppress warnings from SQL queries
 warnings.simplefilter(action='ignore', category=UserWarning)
 
+# RUN_MODE = DEBUG or PROD - Determines if this is being used for debugging / development and provides
+# additional debugging logs
 RUN_MODE = "PROD"
+# RUN_MODE = "DEBUG"
 
 # To run OperGrid for a different module, change the module selection below in the else block.
 # Must be one of the toolset labels configured in the Toolset clas toolset_selection variable
@@ -30,8 +32,72 @@ if len(sys.argv) > 1:
     module_selection = sys.argv[1]
     print(f"Setting Module Selection: {module_selection}")
 else:
-    module_selection = "KNST"
+    module_selection = "XST"
     print(f"Setting Default Module Selection: {module_selection}")
+
+
+class DebuggingLogger:
+    def __init__(self, run_mode):
+        self.dbgpath = Path("C:/Users/vlondagi/source/repos/SCREEN_Oper_Grid/Script_Output/Debugging")
+        self.run_mode = run_mode
+        self.print_log = self.check_run_mode(self.print_log)
+        self.log_df = self.check_run_mode(self.log_df)
+        self.log_file = self.dbgpath / "Log_File.txt"
+
+        if not self.log_file.is_file():
+            with open(self.log_file, "a") as f:
+                pass
+
+    def check_run_mode(self, func):
+        def wrapper(*args, **kwargs):
+            if self.run_mode == "DEBUG":
+                result = func(*args, **kwargs)
+            else:
+                result = None
+
+            return result
+
+        return wrapper
+
+    def print_log(self, *args, **kwargs):
+        log_message = kwargs.get("log_message", "")
+
+        if "log_message" != "":
+            print(f"Log Message: {log_message}")
+            with open(self.log_file, "a") as f:
+                f.write(log_message)
+                f.write("\n")
+
+    def log_df(self, *args, **kwargs):
+        for idx, arg in enumerate(args):
+            if isinstance(arg, pd.DataFrame):
+                tbl = f"{arg} + {idx}"
+                arg.to_csv(self.dbgpath / tbl, index=False, index_label=None)
+
+        df = kwargs.get("df", "")
+        df_name = kwargs.get("df_name", "")
+        if not df.empty and isinstance(df, pd.DataFrame) and df_name:
+            base_path = self.dbgpath / df_name
+            print(f"Logging df: {df_name}")
+            df.to_csv(base_path.with_suffix(".csv"), index=False, index_label=None)
+            print(f"{df_name} saved")
+
+        dfs = kwargs.get("dfs", "")
+        if dfs != "" and isinstance(dfs, list):
+            for idx, df in enumerate(dfs):
+                base_path = self.dbgpath / f"df{idx}"
+                print(f"Logging df{idx}...")
+                df.to_csv(base_path.with_suffix(".csv"), index=False, index_label=None)
+                print(f"df{idx} saved")
+        elif dfs != "" and isinstance(dfs, dict):
+            for k, v in dfs.items():
+                base_path = self.dbgpath / k
+                print(f"Logging {k}...")
+                v.to_csv(base_path.with_suffix(".csv"), index=False, index_label=None)
+                print(f"{k} saved")
+
+
+dbg = DebuggingLogger(run_mode=RUN_MODE)
 
 
 class Toolset:
@@ -41,17 +107,29 @@ class Toolset:
         self.model_map = {}
         self.path_variables = {}
         self.lot_hist_filter = {}
+        self.attributes = []
+        self.recipe_col = ''
 
         if self.toolset == "BUR":
             self.min_chamber_check = 2
+            self.attributes = ["AdhocMon90", "MOQRestrict"]
+            self.recipe_col = "recipe_name"
         elif self.toolset == "KNST":
             self.min_chamber_check = 6
+            self.attributes = ["AdhocMon90", "MOQRestrict"]
+            self.recipe_col = "recipe_name"
         elif self.toolset == "XST":
             self.min_chamber_check = 2
+            self.attributes = ["AdhocMon90", "MOQRestrict"]
+            self.recipe_col = "recipe_name"
         elif self.toolset == "XRT":
             self.min_chamber_check = 4
+            self.attributes = ["MOQRestrict"]
+            self.recipe_col = "recipe"
         else:
             self.min_chamber_check = 6
+            self.attributes = ["AdhocMon90", "MOQRestrict"]
+            self.recipe_col = 'recipe_name'
 
     def get_model_map(self):
         if self.toolset not in self.toolset_selection:
@@ -93,41 +171,49 @@ class Toolset:
                 "datatables_dir":
                     "https://azshweb.intel.com/AZAnalysis$/1274_MAODATA/Config/wet_etch/KNST/configs/DataTables_Plugin/"
             })
-        if self.toolset not in self.toolset_selection:
-            print(f"Invalid Toolset: {self.toolset} not in {self.toolset_selection}")
-        elif self.toolset == "BUR":
+        if RUN_MODE == "DEBUG":
             self.path_variables.update({
-                "output_dir": Path(
-                    "//azshfs.intel.com/AZAnalysis$/1278_MAODATA/Wet_Etch/BUR/Script_Output/xRT_BUR_Oper_Grid"),
-                "html_output_dir": Path(
-                    "//azshfs.intel.com/AZAnalysis$/1278_MAODATA/Wet_Etch/BUR/Script_Output/xRT_BUR_Oper_Grid/Output_HTML"),
-                "html_out_file":r"https://azshweb.intel.com/AZAnalysis$/1278_MAODATA/Wet_Etch/BUR/Script_Output/xRT_BUR_Oper_Grid/Output_HTML/"
-            })
-        elif self.toolset == "KNST":
-            self.path_variables.update({
-                "output_dir": Path("//AZSHFS.intel.com/AZAnalysis$/1274_MAODATA/wet_etch/KNST/Script Output/OperGrid"),
-                "html_output_dir": Path(
-                    "//AZSHFS.intel.com/AZAnalysis$/1274_MAODATA/wet_etch/KNST/Script Output/OperGrid/Output_HTML"),
-                "html_out_file": r"https://azshweb.intel.com/AZAnalysis$/1274_MAODATA/wet_etch/KNST/Script Output/OperGrid/Output_HTML/"
-            })
-        elif self.toolset == "XST":
-            self.path_variables.update({
-                "output_dir": Path(
-                    "//AZSHFS.intel.com/AZAnalysis$/1274_MAODATA/wet_etch/EST_SST/Script Output/OperGrid"),
-                "html_output_dir": Path(
-                    "//AZSHFS.intel.com/AZAnalysis$/1274_MAODATA/wet_etch/EST_SST/Script Output/OperGrid/Output_HTML"),
-                "html_out_file": r"https://azshweb.intel.com/AZAnalysis$/1274_MAODATA/wet_etch/EST_SST/Script Output/OperGrid/Output_HTML/"
-            })
-        elif self.toolset == "XRT":
-            self.path_variables.update({
-                "output_dir": Path(
-                    "//azshfs.intel.com/AZAnalysis$/1278_MAODATA/Wet_Etch/BUR/Script_Output/xRT_BUR_Oper_Grid"),
-                "html_output_dir": Path(
-                    "//azshfs.intel.com/AZAnalysis$/1278_MAODATA/Wet_Etch/BUR/Script_Output/xRT_BUR_Oper_Grid/Output_HTML"),
-                "html_out_file": r"https://azshweb.intel.com/AZAnalysis$/1278_MAODATA/Wet_Etch/BUR/Script_Output/xRT_BUR_Oper_Grid/Output_HTML/"
+                "out_path": Path("C:/Users/vlondagi/source/repos/SCREEN_Oper_Grid/Script_Output"),
+                "output_dir": Path("C:/Users/vlondagi/source/repos/SCREEN_Oper_Grid/Script_Output"),
+                "html_output_dir": Path("C:/Users/vlondagi/source/repos/SCREEN_Oper_Grid/Script_Output/Output_HTML"),
+                "html_out_file": r"C:/Users/vlondagi/source/repos/SCREEN_Oper_Grid/Script_Output/Output_HTML/"
             })
         else:
-            print(f"Invalid Toolset")
+            if self.toolset not in self.toolset_selection:
+                print(f"Invalid Toolset: {self.toolset} not in {self.toolset_selection}")
+            elif self.toolset == "BUR":
+                self.path_variables.update({
+                    "output_dir": Path(
+                        "//azshfs.intel.com/AZAnalysis$/1278_MAODATA/Wet_Etch/BUR/Script_Output/xRT_BUR_Oper_Grid"),
+                    "html_output_dir": Path(
+                        "//azshfs.intel.com/AZAnalysis$/1278_MAODATA/Wet_Etch/BUR/Script_Output/xRT_BUR_Oper_Grid/Output_HTML"),
+                    "html_out_file":r"https://azshweb.intel.com/AZAnalysis$/1278_MAODATA/Wet_Etch/BUR/Script_Output/xRT_BUR_Oper_Grid/Output_HTML/"
+                })
+            elif self.toolset == "KNST":
+                self.path_variables.update({
+                    "output_dir": Path("//AZSHFS.intel.com/AZAnalysis$/1274_MAODATA/wet_etch/KNST/Script Output/OperGrid"),
+                    "html_output_dir": Path(
+                        "//AZSHFS.intel.com/AZAnalysis$/1274_MAODATA/wet_etch/KNST/Script Output/OperGrid/Output_HTML"),
+                    "html_out_file": r"https://azshweb.intel.com/AZAnalysis$/1274_MAODATA/wet_etch/KNST/Script Output/OperGrid/Output_HTML/"
+                })
+            elif self.toolset == "XST":
+                self.path_variables.update({
+                    "output_dir": Path(
+                        "//AZSHFS.intel.com/AZAnalysis$/1274_MAODATA/wet_etch/EST_SST/Script Output/OperGrid"),
+                    "html_output_dir": Path(
+                        "//AZSHFS.intel.com/AZAnalysis$/1274_MAODATA/wet_etch/EST_SST/Script Output/OperGrid/Output_HTML"),
+                    "html_out_file": r"https://azshweb.intel.com/AZAnalysis$/1274_MAODATA/wet_etch/EST_SST/Script Output/OperGrid/Output_HTML/"
+                })
+            elif self.toolset == "XRT":
+                self.path_variables.update({
+                    "output_dir": Path(
+                        "//azshfs.intel.com/AZAnalysis$/1278_MAODATA/Wet_Etch/BUR/Script_Output/xRT_BUR_Oper_Grid"),
+                    "html_output_dir": Path(
+                        "//azshfs.intel.com/AZAnalysis$/1278_MAODATA/Wet_Etch/BUR/Script_Output/xRT_BUR_Oper_Grid/Output_HTML"),
+                    "html_out_file": r"https://azshweb.intel.com/AZAnalysis$/1278_MAODATA/Wet_Etch/BUR/Script_Output/xRT_BUR_Oper_Grid/Output_HTML/"
+                })
+            else:
+                print(f"Invalid Toolset")
 
     def get_lot_hist_filter(self):
         if self.toolset not in self.toolset_selection:
@@ -167,23 +253,13 @@ toolset.get_path_variables()
 toolset.get_lot_hist_filter()
 
 # Create path variables for testing / debugging
-if RUN_MODE == "DEBUG":
-    out_path = Path("C:/Users/vlondagi/source/repos/SCREEN_Oper_Grid/Script_Output")
-    output_dir = Path("C:/Users/vlondagi/source/repos/SCREEN_Oper_Grid/Script_Output")
-    html_output_dir = Path("C:/Users/vlondagi/source/repos/SCREEN_Oper_Grid/Script_Output/Output_HTML")
-    html_out_file = Path("C:/Users/vlondagi/source/repos/SCREEN_Oper_Grid/Script_Output/Output_HTML")
-    bootstrap_css = Path("C:/Users/vlondagi/source/repos/SCREEN_Oper_Grid/Resources/Bootstrap/bootstrap5_dist/css/bootstrap.min.css")
-    bootstrap_js = Path("C:/Users/vlondagi/source/repos/SCREEN_Oper_Grid/Resources/Bootstrap/bootstrap5_dist/js/bootstrap.bundle.js")
-    datatables_dir = Path("C:/Users/vlondagi/source/repos/SCREEN_Oper_Grid/Resources/DataTables_Plugin/")
 
-
-else:
-    output_dir = toolset.path_variables.get("output_dir", "")
-    html_output_dir = toolset.path_variables.get("html_output_dir", "")
-    html_out_file = toolset.path_variables.get("html_out_file", "")
-    bootstrap_css = toolset.path_variables.get("bootstrap_css", "")
-    bootstrap_js = toolset.path_variables.get("bootstrap_js", "")
-    datatables_dir = toolset.path_variables.get("datatables_dir", "")
+output_dir = toolset.path_variables.get("output_dir", "")
+html_output_dir = toolset.path_variables.get("html_output_dir", "")
+html_out_file = toolset.path_variables.get("html_out_file", "")
+bootstrap_css = toolset.path_variables.get("bootstrap_css", "")
+bootstrap_js = toolset.path_variables.get("bootstrap_js", "")
+datatables_dir = toolset.path_variables.get("datatables_dir", "")
 
 # Configuring Directories for Web Pages
 datatables_plugin = datatables_dir + "datatables.min.js"
@@ -200,62 +276,6 @@ ceid_list = [k for k in am_model_map.keys()]
 
 entity_prefix_map = {ceid: re.match(r'[A-Z]+', ceid).group(0) for ceid in ceid_list}
 entity_prefixes = sorted(set(entity_prefix_map.values()))
-
-
-class DebuggingLogger:
-    def __init__(self, run_mode):
-        self.dbgpath = Path("C:/Users/vlondagi/source/repos/SCREEN_Oper_Grid/Script_Output/Debugging")
-        self.run_mode = run_mode
-        self.print_log = self.check_run_mode(self.print_log)
-        self.log_df = self.check_run_mode(self.log_df)
-        self.log_file = self.dbgpath / "Log_File.txt"
-
-        if not self.log_file.is_file():
-            with open(self.log_file, "a") as f:
-                pass
-
-    def check_run_mode(self, func):
-        def wrapper(*args, **kwargs):
-            if self.run_mode == "DEBUG":
-                result = func(*args, **kwargs)
-            else:
-                result = None
-
-            return result
-
-        return wrapper
-
-    def print_log(self, *args, **kwargs):
-        log_message = kwargs.get("log_message", "")
-
-        if "log_message" != "":
-            print(f"Log Message: {log_message}")
-            with open(self.log_file, "a") as f:
-                f.write(log_message)
-                f.write("\n")
-
-    def log_df(self, *args, **kwargs):
-        for idx, arg in enumerate(args):
-            if isinstance(arg, pd.DataFrame):
-                tbl = f"{arg} + {idx}"
-                arg.to_csv(self.dbgpath / tbl, index=False, index_label=None)
-
-        dfs = kwargs.get("dfs", "")
-        if dfs != "" and isinstance(dfs, list):
-            for idx, df in enumerate(dfs):
-                base_path = self.dbgpath / f"df{idx}"
-                print(f"Logging df{idx}...")
-                df.to_csv(base_path.with_suffix(".csv"), index=False, index_label=None)
-                print(f"df{idx} saved")
-        elif dfs != "" and isinstance(dfs, dict):
-            for k, v in dfs.items():
-                base_path = self.dbgpath / k
-                print(f"Logging {k}...")
-                v.to_csv(base_path.with_suffix(".csv"), index=False, index_label=None)
-                print(f"{k} saved")
-
-
-dbg = DebuggingLogger(run_mode=RUN_MODE)
 
 
 def get_all_keys(nested_dict):
@@ -341,8 +361,7 @@ def query_db(db_num: int) -> pd.DataFrame:
             AND ({'\n OR '.join(conditions)})
         """
         df = pd.read_sql(sql1, conn)
-        # if RUN_MODE == "DEVELOPMENT":
-        #     print(f"DF1: {df}")
+        dbg.log_df(df=df, df_name="DF1_From_Query")
     elif db_num == 2:
         conditions = [f"am5.am_ldr_modelname LIKE '{value}'" for value in am_model_map.values()]
         sql2 = f"""
@@ -355,7 +374,7 @@ def query_db(db_num: int) -> pd.DataFrame:
                 ,product AS product
                 ,route AS route
                 ,operation AS operation
-                ,recipe_name AS recipe_name
+                ,{toolset.recipe_col} AS recipe_name
                 ,ct_file AS ct_file
                 ,GET_ATTRIBUTE_VALUE ( parameter_list , Upper('CAB_LIST'), ';') AS CAB_LIST
                 ,process_node AS process_node
@@ -371,6 +390,7 @@ def query_db(db_num: int) -> pd.DataFrame:
                 ,am5.route AS route
                 ,am5.operation AS operation
                 ,am5.recipe_name AS recipe_name
+                ,am5.recipe AS recipe
                 ,am5.ct_file AS ct_file
                 ,am5.parameter_list AS parameter_list
                 ,REPLACE(REGEXP_SUBSTR(';'||am5.parameter_list , '(?<=;_PROCESS=).*?(?=(;[^;]+=)|(;$))',1,1,'i'),',',';') AS process_node
@@ -386,6 +406,7 @@ def query_db(db_num: int) -> pd.DataFrame:
         df = pd.read_sql(sql2, conn)
         df = df.loc[df['OBJECTNAME'] == 'F3_SETUP']
         df["PROCESS_NODE"] = df["PROCESS_NODE"].astype(str)
+        dbg.log_df(df=df, df_name="DF2_From_Query")
     elif db_num == 3:
         sql3 = """
             SELECT 
@@ -415,6 +436,7 @@ def query_db(db_num: int) -> pd.DataFrame:
         """
         df = pd.read_sql(sql3, conn)
         df = df.pivot(index='ROW_NUMBER', columns='COLUMN_NAME', values='COLUMN_DATA')
+        dbg.log_df(df=df, df_name="DF3_From_Query")
     elif db_num == 4:
         conditions = [f"am7.am_ldr_modelname LIKE '{value}'" for value in am_model_map.values()]
         sql4 = f"""
@@ -436,8 +458,10 @@ def query_db(db_num: int) -> pd.DataFrame:
                 3 Asc
         """
         df = pd.read_sql(sql4, conn)
+        dbg.log_df(df=df, df_name="DF4_From_Query")
     elif db_num == 5:
         conditions = [f"e.entity LIKE '{value}___'" for value in entity_prefixes]
+        attributes = [f"ea.attribute_name LIKE '{value}%'" for value in toolset.attributes]
         sql5 = f"""
         SELECT 
                 e.entity AS entity
@@ -451,14 +475,13 @@ def query_db(db_num: int) -> pd.DataFrame:
         LEFT JOIN F_ENTITYATTRIBUTE ea ON ea.entity = e.entity AND ea.history_deleted_flag='N'
         WHERE
                     e.entity_deleted_flag = 'N' 
-        AND      (ea.attribute_name LIKE  'MOQRestrict%'
-        OR ea.attribute_name LIKE 'AdhocMon90%'
-        ) 
+        AND      ({'\n OR '.join(attributes)})
         AND      e.configured_processes Like '%' 
         AND      ({'\n OR '.join(conditions)})
         """
         df = pd.read_sql(sql5, conn)
         df = df.pivot(index='ENTITY', columns='ATTRIBUTE_NAME', values='ATTRIBUTE_VALUE')
+        dbg.log_df(df=df, df_name="DF5_From_Query")
     elif db_num == 6:
         conditions = [f"e.entity LIKE '{value}%'" for value in entity_prefixes]
         sql6 = f"""
@@ -515,8 +538,7 @@ def query_db(db_num: int) -> pd.DataFrame:
         )
         """
         df = pd.read_sql(sql6, conn)
-        # if RUN_MODE == "DEVELOPMENT":
-        #     print(f"DF6: {df.head(20)}")
+        dbg.log_df(df=df, df_name="DF6_From_Query")
     elif db_num == 7:
         conditions = [f"e.entity LIKE '{value}%'" for value in entity_prefixes]
         sql7 = f"""
@@ -537,6 +559,7 @@ def query_db(db_num: int) -> pd.DataFrame:
         AND      eo.entity Not Like '%SPIN%'
         """
         df = pd.read_sql(sql7, conn)
+        dbg.log_df(df=df, df_name="DF7_From_Query")
     elif db_num == 8:
         conditions = [f"o.module LIKE '%{value}%'" for value in entity_prefixes]
         sql8 = f"""
@@ -556,6 +579,7 @@ def query_db(db_num: int) -> pd.DataFrame:
         """
         df = pd.read_sql(sql8, conn)
         df.drop_duplicates(ignore_index=True, inplace=True)
+        dbg.log_df(df=df, df_name="DF8_From_Query")
     elif db_num == 9:
         conditions = [f"am5.am_ldr_modelname LIKE '{value}'" for value in am_model_map.values()]
         sql9 = f"""
@@ -594,9 +618,11 @@ def query_db(db_num: int) -> pd.DataFrame:
         """
         df = pd.read_sql(sql9, conn)
         df = df.loc[df['OBJECTNAME'] == 'CT_CABINET', ['PROCESS', 'MODELNAME', 'OBJECTNAME', 'CT_FILE', 'CAB_LIST']]
+        dbg.log_df(df=df, df_name="DF9_From_Query")
     else:
         raise NotImplementedError('This database number is not configured!')
     return df
+
 
 
 # worker functions to create dictionaries to store information
@@ -837,7 +863,7 @@ def check_ops_to_ent(oper: str, entity: str, ops_ent_df: pd.DataFrame, cc_df: pd
     Returns:
         str: Empty if passed, O if not passed
     """
-    oper = str(oper).strip()
+    oper = str(oper).strip().split("_")[0]
     entity = str(entity).strip()
 
     if parent_assoc_set is not None:
@@ -845,7 +871,7 @@ def check_ops_to_ent(oper: str, entity: str, ops_ent_df: pd.DataFrame, cc_df: pd
 
     # valid association only when parent entity itself is explicitly associated to the operation
     parent_assoc = ops_ent_df[
-        (ops_ent_df['OPERATION'].astype(str).str.strip() == oper)
+        (ops_ent_df['OPERATION'].astype(str).str.strip().split("_")[0] == oper)
         & (ops_ent_df['PARENT_ENTITY'].astype(str).str.strip() == entity)
         & (ops_ent_df['ENTITY'].astype(str).str.strip() == entity)
     ]
@@ -1049,8 +1075,10 @@ def check_spr(entity: str, spr_df: pd.DataFrame) -> str:
     Returns:
         str: Empty if passed, R if locked out
     """
-    spr_df["AdhocMon90"] = spr_df["AdhocMon90"].fillna(0)
-    if int(spr_df['AdhocMon90'].loc[entity]) > 0: return 'R'
+    if "AdhocMon90" in spr_df.columns:
+        spr_df["AdhocMon90"] = spr_df["AdhocMon90"].fillna(0)
+        if int(spr_df['AdhocMon90'].loc[entity]) > 0: return 'R'
+
     return ''
 
 
@@ -1066,7 +1094,10 @@ def check_min_spin(entity: str, ent_stat_df: pd.DataFrame) -> str:
     """
     # slice input DF query based on parent_entity and 'MPC' subentities only
     new_df = ent_stat_df[['PARENT_ENTITY', 'SUBENTITY', 'STATE', 'AVAILABILITY']][
-             ((ent_stat_df['SUBENTITY'].str.contains('MPC')) | ent_stat_df['SUBENTITY'].str.contains('SPIN')) & (ent_stat_df['PARENT_ENTITY'] == entity)]
+             ((ent_stat_df['SUBENTITY'].str.contains('MPC') |
+              ent_stat_df['SUBENTITY'].str.contains('SPIN') |
+              ent_stat_df['SUBENTITY'].str.contains('U')) &
+             (ent_stat_df['PARENT_ENTITY'] == entity))]
 
     # count the number of chambers currently up on entity
     count = 0
@@ -1166,7 +1197,7 @@ div.dataTables_wrapper {
 </style>
 """
 
-legend_list = """
+legend_list = f"""
 <div class="body-div">
     <h2><strong>LEGEND:</strong></h2>
 </div>
@@ -1182,7 +1213,7 @@ legend_list = """
             C = CC Requirements Not Met For CT File
         </li>
         <li>
-            N = Min Chamber Check Not Met (at least 6 chambers UTP)
+            N = Min Chamber Check Not Met (at least {toolset.min_chamber_check} chambers UTP)
         </li>
         <li>
             M = MOQ Restricted
@@ -1212,7 +1243,7 @@ legend_table = f"""
                 A = AMCT Tool Filter Lockout <br>
                 D = Parent Entity Down <br>
                 C = CC Requirements Not Met For CT File <br>
-                N = Min Chamber Check Not Met (at least 6 chambers UTP) <br>
+                N = Min Chamber Check Not Met (at least {toolset.min_chamber_check} chambers UTP) <br>
                 M = MOQ Restricted
             </td>
 
@@ -1888,7 +1919,7 @@ def main():
         df_changes_detected = pd.DataFrame([{'changes_detected': 'There are Changes Detected'}]).reset_index(drop=True)
         changes_detected = True
 
-    pth_changes_detected = output_dir / "OperGrid_Changes_Detected"
+    pth_changes_detected = output_dir / f"{module_selection}_OperGrid_Changes_Detected"
     df_changes_detected.to_csv(pth_changes_detected.with_suffix(".tab"), sep="\t")
 
     print("Creating Difference HTML Tables...")
@@ -1926,7 +1957,7 @@ def main():
     else:
         df_lines_down = pd.DataFrame([{'lines_down': 'There are Operations Lines Down'}]).reset_index(drop=True)
 
-    pth_df_lines_down = output_dir / "LinesDown_Operations"
+    pth_df_lines_down = output_dir / f"{module_selection}_LinesDown_Operations"
     df_lines_down.to_csv(pth_df_lines_down.with_suffix(".tab"), sep="\t")
 
     print("Creating Lines Down HTML Tables...")
@@ -1959,7 +1990,7 @@ def main():
         }
 
     DIFFS_DICT = {
-        "file_name": "OperGrid_Diffs",
+        "file_name": f"{module_selection}_OperGrid_Diffs",
         "title": "Oper Grid Differences",
         "heading": "Oper Grid Differences",
         "body_text": legend_table,
@@ -1973,7 +2004,7 @@ def main():
         DIFFS_DICT[f"{k.lower()}_table"] = diff_table
 
     LINES_DOWN_DICT = {
-        "file_name": "Lines_Down_Operations",
+        "file_name": f"{module_selection}_Lines_Down_Operations",
         "title": "Lines Down Operations",
         "heading": "Lines Down Operations",
         "body_text": "<p>The following operations are Lines Down: </p>",

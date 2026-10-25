@@ -6,10 +6,10 @@
         <head>
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <link rel="stylesheet" href="C:\Users\vlondagi\source\repos\SCREEN_Oper_Grid\Resources\Bootstrap\bootstrap5_dist\css\bootstrap.min.css">
-            <link rel="stylesheet" href="C:\Users\vlondagi\source\repos\SCREEN_Oper_Grid\Resources\DataTables_Plugin\Datatables-1.13.5\css\dataTables.bootstrap5.min.css">
-            <link rel="stylesheet" href="C:\Users\vlondagi\source\repos\SCREEN_Oper_Grid\Resources\DataTables_Plugin\FixedColumns-4.3.0\css\fixedColumns.dataTables.min.css">
-            <link rel="stylesheet" href="C:\Users\vlondagi\source\repos\SCREEN_Oper_Grid\Resources\DataTables_Plugin\FixedColumns-4.3.0\css\fixedColumns.bootstrap5.min.css">
+            <link rel="stylesheet" href="https://azshweb.intel.com/AZAnalysis$/1274_MAODATA/Config/wet_etch/KNST/configs/Bootstrap/bootstrap5_dist/css/bootstrap.min.css">
+            <link rel="stylesheet" href="https://azshweb.intel.com/AZAnalysis$/1274_MAODATA/Config/wet_etch/KNST/configs/DataTables_Plugin/Datatables-1.13.5/css/dataTables.bootstrap5.min.css">
+            <link rel="stylesheet" href="https://azshweb.intel.com/AZAnalysis$/1274_MAODATA/Config/wet_etch/KNST/configs/DataTables_Plugin/FixedColumns-4.3.0/css/fixedColumns.dataTables.min.css">
+            <link rel="stylesheet" href="https://azshweb.intel.com/AZAnalysis$/1274_MAODATA/Config/wet_etch/KNST/configs/DataTables_Plugin/FixedColumns-4.3.0/css/fixedColumns.bootstrap5.min.css">
             
 <style>
 h1 {
@@ -69,36 +69,142 @@ div.dataTables_wrapper {
             <div class="collapse navbar-collapse" id="navbarSupportedContent">
               <ul class="navbar-nav me-auto mb-2 mb-lg-0">
                 <li class="nav-item">
-	 <a class="navbar-brand" href="C:\Users\vlondagi\source\repos\SCREEN_Oper_Grid\Script_Output\Output_HTML\SST_OperGrid.html">SST</a> 
+	 <a class="navbar-brand" href="C:/Users/vlondagi/source/repos/SCREEN_Oper_Grid/Script_Output/Output_HTML/DRTnb_OperGrid.html">DRTNB</a> 
 	</li>
 <li class="nav-item">
-	 <a class="navbar-brand" href="C:\Users\vlondagi\source\repos\SCREEN_Oper_Grid\Script_Output\Output_HTML\EST_OperGrid.html">EST</a> 
+	 <a class="navbar-brand" href="C:/Users/vlondagi/source/repos/SCREEN_Oper_Grid/Script_Output/Output_HTML/DRTnc_OperGrid.html">DRTNC</a> 
 	</li>
 <li class="nav-item">
-	 <a class="navbar-brand" href="C:\Users\vlondagi\source\repos\SCREEN_Oper_Grid\Script_Output\Output_HTML\GST_OperGrid.html">GST</a> 
+	 <a class="navbar-brand" href="C:/Users/vlondagi/source/repos/SCREEN_Oper_Grid/Script_Output/Output_HTML/DRTcb_OperGrid.html">DRTCB</a> 
 	</li>
 <li class="nav-item">
-	 <a class="navbar-brand" href="C:\Users\vlondagi\source\repos\SCREEN_Oper_Grid\Script_Output\Output_HTML\EST53_OperGrid.html">EST53</a> 
+	 <a class="navbar-brand" href="C:/Users/vlondagi/source/repos/SCREEN_Oper_Grid/Script_Output/Output_HTML/DRTcu_OperGrid.html">DRTCU</a> 
 	</li>
                 <li class="nav-item">
-                  <a class="navbar-brand" href="C:\Users\vlondagi\source\repos\SCREEN_Oper_Grid\Script_Output\Output_HTML\OperGrid_Diffs.html">Oper Grid Changes</a>
+                  <a class="navbar-brand" href="C:/Users/vlondagi/source/repos/SCREEN_Oper_Grid/Script_Output/Output_HTML/OperGrid_Diffs.html">Oper Grid Changes</a>
                 </li>
               </ul>
-              <span class="navbar-text">Updated: 2026-10-23 11:11:12</span>
+              <span class="navbar-text">Updated: 2026-10-24 14:41:14</span>
             </div>
           </div>
         </nav>
         <h1>Oper Grid Differences</h1>
         <div class="body-div">
-            <h2><strong>No Changes Detected</strong></h2>
+            
+<div class="body-div">
+    <h4><strong>LEGEND:</strong></h2>
+</div>
+<div class="body-div">
+    <table class="table_legend" id="T_legend">
+        <tr>
+
+            <td class="data" style="background-color:#ffc7ce; font-weight: bold">
+                A = AMCT Tool Filter Lockout <br>
+                D = Parent Entity Down <br>
+                C = CC Requirements Not Met For CT File <br>
+                N = Min Chamber Check Not Met (at least 4 chambers UTP) <br>
+                M = MOQ Restricted
+            </td>
+
+            <td class="data" style="background-color:#ffeb9c; font-weight: bold">
+                S = SIF Only <br>
+                R = SPR Lockout
+            </td>
+        </tr>
+        <tr>
+
+            <td class="data" style="background-color:#A6A6A6; font-weight: bold">
+                O = Operation-To-Entity Check Failed
+            </td>
+
+            <td class="data" style="background-color:#c6efce; font-weight: bold">
+                OPEN
+            </td>
+        </tr>
+
+    </table>
+</div>
+
         </div>
         
-        <script src="C:\Users\vlondagi\source\repos\SCREEN_Oper_Grid\Resources\Bootstrap\bootstrap5_dist\js\bootstrap.bundle.js"></script>
-        <script src="C:\Users\vlondagi\source\repos\SCREEN_Oper_Grid\Resources\DataTables_Plugin\jQuery-3.7.0\jquery-3.7.0.min.js"></script>
-        <script src="C:\Users\vlondagi\source\repos\SCREEN_Oper_Grid\Resources\DataTables_Plugin\datatables.min.js"></script>
-        <script src="C:\Users\vlondagi\source\repos\SCREEN_Oper_Grid\Resources\DataTables_Plugin\FixedColumns-4.3.0\js\dataTables.fixedColumns.min.js"></script>
-        <script src="C:\Users\vlondagi\source\repos\SCREEN_Oper_Grid\Resources\DataTables_Plugin\FixedColumns-4.3.0\js\fixedColumns.bootstrap5.min.js"></script>
+        <script src="https://azshweb.intel.com/AZAnalysis$/1274_MAODATA/Config/wet_etch/KNST/configs/Bootstrap/bootstrap5_dist/js/bootstrap.bundle.js"></script>
+        <script src="https://azshweb.intel.com/AZAnalysis$/1274_MAODATA/Config/wet_etch/KNST/configs/DataTables_Plugin/jQuery-3.7.0/jquery-3.7.0.min.js"></script>
+        <script src="https://azshweb.intel.com/AZAnalysis$/1274_MAODATA/Config/wet_etch/KNST/configs/DataTables_Plugin/datatables.min.js"></script>
+        <script src="https://azshweb.intel.com/AZAnalysis$/1274_MAODATA/Config/wet_etch/KNST/configs/DataTables_Plugin/FixedColumns-4.3.0/js/dataTables.fixedColumns.min.js"></script>
+        <script src="https://azshweb.intel.com/AZAnalysis$/1274_MAODATA/Config/wet_etch/KNST/configs/DataTables_Plugin/FixedColumns-4.3.0/js/fixedColumns.bootstrap5.min.js"></script>
         
+                <script>
+                new DataTable("#T_drtnb_diffs", {
+                fixedColumns: {
+                    left: 1
+                },
+                paging: true,
+                scrollY: "20vh", 
+                scrollX: true, 
+                pageLength: 10, 
+                order: [0, 'asc'], 
+                scrollResize: true,
+                ordering: true,
+                iDisplayLength: -1,
+                bStateSave: false,
+                aLengthMenu: [[10,25,50,100,-1], [10,25,50,100,"All"]],
+            });
+                </script>
+                
+                <script>
+                new DataTable("#T_drtnc_diffs", {
+                fixedColumns: {
+                    left: 1
+                },
+                paging: true,
+                scrollY: "20vh", 
+                scrollX: true, 
+                pageLength: 10, 
+                order: [0, 'asc'], 
+                scrollResize: true,
+                ordering: true,
+                iDisplayLength: -1,
+                bStateSave: false,
+                aLengthMenu: [[10,25,50,100,-1], [10,25,50,100,"All"]],
+            });
+                </script>
+                
+                <script>
+                new DataTable("#T_drtcb_diffs", {
+                fixedColumns: {
+                    left: 1
+                },
+                paging: true,
+                scrollY: "20vh", 
+                scrollX: true, 
+                pageLength: 10, 
+                order: [0, 'asc'], 
+                scrollResize: true,
+                ordering: true,
+                iDisplayLength: -1,
+                bStateSave: false,
+                aLengthMenu: [[10,25,50,100,-1], [10,25,50,100,"All"]],
+            });
+                </script>
+                
+                <script>
+                new DataTable("#T_drtcu_diffs", {
+                fixedColumns: {
+                    left: 1
+                },
+                paging: true,
+                scrollY: "20vh", 
+                scrollX: true, 
+                pageLength: 10, 
+                order: [0, 'asc'], 
+                scrollResize: true,
+                ordering: true,
+                iDisplayLength: -1,
+                bStateSave: false,
+                aLengthMenu: [[10,25,50,100,-1], [10,25,50,100,"All"]],
+            });
+                </script>
+                
         </body>
         <footer>
         </footer>

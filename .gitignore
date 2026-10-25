@@ -47,8 +47,12 @@ Thumbs.db
 .coverage.*
 .ruff_cache/
 .mypy_cache/
+Debugging/
 
 # Web Framework Specific files
 local_settings.py
 db.sqlite3
 db.sqlite3-journal
+
+# Project Specific Files
+Script_Output
