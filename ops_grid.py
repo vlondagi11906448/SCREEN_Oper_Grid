@@ -1271,6 +1271,7 @@ legend_table = f"""
 def write_html_output(link_dict, custom_css, searchable=True, **kwargs):
     nav_links = [f'<li class="nav-item">\n\t <a class="navbar-brand" href="{val}">{key.split("_")[0].upper()}</a> \n\t</li>' for key, val in link_dict.items() if "oper" not in str(key)]
     oper_grid_diffs_link = link_dict["oper_grid_diffs_href"]
+    oper_lines_down_link = link_dict.get("oper_lines_down_href", "")
     title = kwargs["title"]
     heading = kwargs["heading"]
     table = kwargs["table"]
@@ -1334,6 +1335,9 @@ def write_html_output(link_dict, custom_css, searchable=True, **kwargs):
                 {"\n".join(nav_links)}
                 <li class="nav-item">
                   <a class="navbar-brand" href="{oper_grid_diffs_link}">Oper Grid Changes</a>
+                </li>
+                <li class="nav-item">
+                  <a class="navbar-brand" href="{oper_lines_down_link}">Lines Down</a>
                 </li>
               </ul>
               <span class="navbar-text">Updated: {updated_date}</span>
@@ -1404,8 +1408,6 @@ def write_email_html_output(link_dict, custom_css, **kwargs):
 
         table_divs.append(table_div)
 
-    # tables = get_nested_dict_vals(kwargs, "_table")
-    # print(f"Line 1120 - Tables: {tables}")
     updated_date = datetime.strftime(datetime.today(), '%Y-%m-%d %H:%M:%S')
 
     html_text = f"""
@@ -1446,9 +1448,10 @@ def write_diffs_html_output(link_dict, custom_css, searchable=True, **kwargs):
     nav_links = [f'<li class="nav-item">\n\t <a class="navbar-brand" href="{val}">{key.split("_")[0].upper()}</a> \n\t</li>' for key, val in link_dict.items() if "oper" not in str(key)]
     filename = kwargs.get("file_name", "DEFAULT")
     output_file = html_output_dir / filename
-    title = kwargs.get("title")
+    title = module_selection + " " + kwargs.get("title")
     heading = kwargs.get("heading")
     oper_grid_diffs_link = link_dict.get("oper_grid_diffs_href", "")
+    oper_lines_down_link = link_dict.get("oper_lines_down_href", "")
     changes_detected = kwargs.get("changes_detected", False)
     if changes_detected:
         body_text = kwargs.get("body_text", "")
@@ -1471,9 +1474,9 @@ def write_diffs_html_output(link_dict, custom_css, searchable=True, **kwargs):
         table_div = f"""
                 <div class="table-div">
                     <div class="table-head">
-                        <h3>{div[0]}</h3>
+                        <h3>{div[1]}</h3>
                     </div>
-                        {div[1]}
+                        {div[0]}
                     <div class="table-caption">
                         <p>{div[2]}</p>
                     </div>
@@ -1536,6 +1539,132 @@ def write_diffs_html_output(link_dict, custom_css, searchable=True, **kwargs):
                 {"\n".join(nav_links)}
                 <li class="nav-item">
                   <a class="navbar-brand" href="{oper_grid_diffs_link}">Oper Grid Changes</a>
+                </li>
+                <li class="nav-item">
+                  <a class="navbar-brand" href="{oper_lines_down_link}">Lines Down</a>
+                </li>
+              </ul>
+              <span class="navbar-text">Updated: {updated_date}</span>
+            </div>
+          </div>
+        </nav>
+        <h1>{heading}</h1>
+        <div class="body-div">
+            {body_text}
+        </div>
+        {"\n".join(table_divs)}
+        <script src="{bootstrap_js}"></script>
+        <script src="{jquery}"></script>
+        <script src="{datatables_plugin}"></script>
+        <script src="{fixed_columns_js}"></script>
+        <script src="{fixed_columns_bs_js}"></script>
+        {custom_script}
+        </body>
+        <footer>
+        </footer>
+    </html>
+
+    """
+    with open(output_file.with_suffix(".html"), "w") as report:
+        report.write(html_text)
+
+
+def write_lines_down_html_output(link_dict, custom_css, searchable=True, **kwargs):
+    nav_links = [f'<li class="nav-item">\n\t <a class="navbar-brand" href="{val}">{key.split("_")[0].upper()}</a> \n\t</li>' for key, val in link_dict.items() if "oper" not in str(key)]
+    filename = kwargs.get("file_name", "DEFAULT")
+    output_file = html_output_dir / filename
+    title = module_selection + " " + kwargs.get("title")
+    heading = kwargs.get("heading")
+    body_text = kwargs.get("body_text", "")
+    oper_grid_diffs_link = link_dict.get("oper_grid_diffs_href", "")
+    oper_lines_down_link = link_dict.get("oper_lines_down_href", "")
+    lines_down_opers = kwargs.get("lines_down_opers", False)
+    if lines_down_opers:
+        body_text = kwargs.get("body_text", "")
+    else:
+        body_text = """<h2><strong>No Lines Down Operations Detected</strong></h2>"""
+
+    table_div_items = []
+    table_divs = []
+    for ceid in ceid_list:
+        tbl = kwargs.get(f"{ceid.lower()}_table")
+        head = kwargs.get(f"{ceid.lower()}_table_head", "")
+        cap = kwargs.get(f"{ceid.lower()}_table_caption", "")
+
+        if tbl not in (None, ""):
+            temp = [tbl, head, cap]
+            table_div_items.append(temp)
+
+    for div in table_div_items:
+        table_div = f"""
+                 <div class="table-div">
+                     <div class="table-head">
+                         <h3>{div[1]}</h3>
+                     </div>
+                         {div[0]}
+                     <div class="table-caption">
+                         <p>{div[2]}</p>
+                     </div>
+                 </div>
+            """
+
+        table_divs.append(table_div)
+
+    updated_date = datetime.strftime(datetime.today(), '%Y-%m-%d %H:%M:%S')
+    table_ids = kwargs.get("table_ids", [])
+    data_tables_options = """{
+                fixedColumns: {
+                    left: 1
+                },
+                paging: true,
+                scrollY: "20vh",
+                scrollX: true,
+                pageLength: 10,
+                order: [0, 'asc'],
+                scrollResize: true,
+                ordering: true,
+                iDisplayLength: -1,
+                bStateSave: false,
+                aLengthMenu: [[10,25,50,100,-1], [10,25,50,100,"All"]],
+            }"""
+
+    custom_script = ""
+    if searchable:
+        for table_id in table_ids:
+            custom_script += f"""
+                <script>
+                new DataTable("#T_{table_id}", {data_tables_options});
+                </script>
+                """
+
+    html_text = f"""
+
+    <!DOCTYPE html>
+    <html lang="en">
+
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <link rel="stylesheet" href="{bootstrap_css}">
+            <link rel="stylesheet" href="{datatables_bootstrap_plugin}">
+            <link rel="stylesheet" href="{fixed_columns_css}">
+            <link rel="stylesheet" href="{fixed_columns_bs_css}">
+            {custom_css}
+            <title>{title}</title>
+        </head>
+
+        <body>
+
+        <nav class="navbar border-bottom border-body navbar-expand-lg" data-bs-theme="dark" style="background-color: #8EA9DB">
+          <div class="container-fluid">
+            <div class="collapse navbar-collapse" id="navbarSupportedContent">
+              <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                {"\n".join(nav_links)}
+                <li class="nav-item">
+                  <a class="navbar-brand" href="{oper_grid_diffs_link}">Oper Grid Changes</a>
+                </li>
+                <li class="nav-item">
+                  <a class="navbar-brand" href="{oper_lines_down_link}">Lines Down</a>
                 </li>
               </ul>
               <span class="navbar-text">Updated: {updated_date}</span>
@@ -1954,8 +2083,10 @@ def main():
 
     if all(len(df_ld) == 0 for df_ld in ld_list):
         df_lines_down = pd.DataFrame().reset_index(drop=True)
+        lines_down_opers = False
     else:
         df_lines_down = pd.DataFrame([{'lines_down': 'There are Operations Lines Down'}]).reset_index(drop=True)
+        lines_down_opers = True
 
     pth_df_lines_down = output_dir / f"{module_selection}_LinesDown_Operations"
     df_lines_down.to_csv(pth_df_lines_down.with_suffix(".tab"), sep="\t")
@@ -1966,7 +2097,7 @@ def main():
         table_uuid = f"{k}_ld"
 
         ld_report = Styler(df_ld,
-                           table_attributes="class='table table-striped cell-borders' style='width: 50px'",
+                           table_attributes="class='table table-striped cell-borders' style='width: 100%'",
                            na_rep=" ") \
         .hide(axis="index") \
         .to_html(table_uuid=table_uuid)
@@ -2008,7 +2139,9 @@ def main():
         "title": "Lines Down Operations",
         "heading": "Lines Down Operations",
         "body_text": "<p>The following operations are Lines Down: </p>",
-        "caption": ""
+        "caption": "",
+        "table_ids": [],
+        "lines_down_opers": lines_down_opers
     }
 
     for k, v in report_config_dict.items():
@@ -2031,8 +2164,10 @@ def main():
 
         if len(ld_df) != 0:
             LINES_DOWN_DICT[f"{k.lower()}_table_head"] = f"{k} Lines Down Operations:"
+            LINES_DOWN_DICT["table_ids"].append(f"{k}_ld")
         else:
             LINES_DOWN_DICT[f"{k.lower()}_table_head"] = ""
+            LINES_DOWN_DICT[f"{k.lower()}_table"] = ""
 
     # Generating Links Dictionary for NavBar
     links = {}
@@ -2045,6 +2180,8 @@ def main():
 
     oper_grid_diffs_href_path = html_out_file + DIFFS_DICT["file_name"]
     links.update({"oper_grid_diffs_href": oper_grid_diffs_href_path + ".html"})
+    lines_down_href_path = html_out_file + LINES_DOWN_DICT["file_name"]
+    links.update({"oper_lines_down_href": lines_down_href_path + ".html"})
 
 
     # Writing output HTML Files with Ops Grid
@@ -2054,7 +2191,11 @@ def main():
         write_html_output(link_dict=links, custom_css=css, searchable=True, **output_dicts[k])
 
     write_diffs_html_output(link_dict=links, custom_css=css, **DIFFS_DICT)
-    write_email_html_output(link_dict=links, custom_css=css, **LINES_DOWN_DICT)
+    write_lines_down_html_output(link_dict=links, custom_css=css, **LINES_DOWN_DICT)
+
+    lines_down_email_dict = dict(LINES_DOWN_DICT)
+    lines_down_email_dict["file_name"] = f"{module_selection}_Lines_Down_Operations_Email"
+    write_email_html_output(link_dict=links, custom_css=css, **lines_down_email_dict)
 
     print("Process Completed!")
 
