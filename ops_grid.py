@@ -1,5 +1,3 @@
-from turtle import back
-
 import PyUber
 import pandas as pd
 import numpy as np
@@ -18,11 +16,53 @@ from pathlib import Path
 
 """
 INSTRUCTIONS: 
+________________________________________________________________________________________________________________________
+________________________________________________________________________________________________________________________
 
-To run the program, 
+Configuration Options:
+1.) Only toolsets configured in the TOOLSET_SELECTION variable will be eligible to run
+2.) To add a new toolset:
+- Add toolset label to TOOLSET_SELECTION
+- Add toolset to TOOLSET_CONFIG - Schema must match. 
+
+Example: 
+"BUR": {
+        "min_chamber_check": 2,
+        "attributes": ["AdhocMon90", "MOQRestrict"],
+        "recipe_col": "recipe_name", # Name of Recipe Column from AMCT F3_SETUP table
+        "model_map": {
+            "BURcu": "BUR_CU_F3"
+        },
+        "lot_hist_filter": {
+            "BURcu": True
+        },
+        "prod_paths": {
+            "output_dir": Path("//azshfs.intel.com/AZAnalysis$/1278_MAODATA/Wet_Etch/BUR/Script_Output/xRT_BUR_Oper_Grid"),
+            "html_output_dir": Path("//azshfs.intel.com/AZAnalysis$/1278_MAODATA/Wet_Etch/BUR/Script_Output/xRT_BUR_Oper_Grid/Output_HTML"),
+            "html_out_file": r"https://azshweb.intel.com/AZAnalysis$/1278_MAODATA/Wet_Etch/BUR/Script_Output/xRT_BUR_Oper_Grid/Output_HTML/"
+        },
+        "tool_exclusions": []
+    }
+
+3.) To modify which tool states are excluded from the output, add the states to the IGNORE_TOOL_STATES variable
+
+________________________________________________________________________________________________________________________
+________________________________________________________________________________________________________________________
+
+To run the program:
+
+Change RUN_MODE depending on your intended use case:
+1.) RUN_MODE = "PROD": This is to run the program in production mode. It will use the production paths and will not log any debugging information.
+2.) RUN_MODE = "DEBUG": This is to run the program in debug mode. It will use the debug paths and will log all debug logs and dataframes. 
+- DEBUG Paths are local directories. To run in DEBUG mode you will need to change the DEBUG_BASE_PATH to a local directory. 
+- The DebuggingLogger constructor will construct all debug paths from the base path selected.
+
+Change RUN_BATCH depending on your intended use case:
+1.) RUN_BATCH = False: This will allow you to run the program against the single module configured in the module_selection variable
+2.) RUN_BATCH = True: This will iteratively run the program against all modules in the BATCH_MODULE_SELECTIONS variable
+- Toolsets not configured will be ineligible for batch processing
 
 """
-
 
 # Set Display Options for Pandas
 pd.set_option('display.max_columns', None)
@@ -45,7 +85,6 @@ BATCH_MODULE_SELECTIONS = ["BUR", "KNST", "XST", "XRT", "HOT"]
 
 # To run OperGrid for a different module, change the module selection below in the else block.
 # Must be one of the toolset labels configured in the TOOLSET_SELECTION variable
-# Currently configured for ["BUR", "KNST", "XST", "XRT"]
 if RUN_BATCH:
     module_selection = BATCH_MODULE_SELECTIONS[0]
     print(f"RUN_BATCH enabled. Skipping single module selection. Using {module_selection} for initial context.")
@@ -65,11 +104,13 @@ COMMON_WEB_PATHS = {
     "datatables_dir": "https://azshweb.intel.com/AZAnalysis$/1274_MAODATA/Config/wet_etch/KNST/configs/DataTables_Plugin/"
 }
 
+DEBUG_BASE_PATH = "C:/Users/vlondagi/source/repos/SCREEN_Oper_Grid/Script_Output"
 DEBUG_PATHS = {
-    "out_path": Path("C:/Users/vlondagi/source/repos/SCREEN_Oper_Grid/Script_Output"),
-    "output_dir": Path("C:/Users/vlondagi/source/repos/SCREEN_Oper_Grid/Script_Output"),
-    "html_output_dir": Path("C:/Users/vlondagi/source/repos/SCREEN_Oper_Grid/Script_Output/Output_HTML"),
-    "html_out_file": r"C:/Users/vlondagi/source/repos/SCREEN_Oper_Grid/Script_Output/Output_HTML/"
+    "debug_path": Path(DEBUG_BASE_PATH + "/Debugging"),
+    "out_path": Path(DEBUG_BASE_PATH),
+    "output_dir": Path(DEBUG_BASE_PATH),
+    "html_output_dir": Path(DEBUG_BASE_PATH + "/Output_HTML"),
+    "html_out_file": DEBUG_BASE_PATH + "/Output_HTML/"
 }
 
 TOOLSET_CONFIG = {
@@ -242,11 +283,12 @@ class Toolset:
 
 class DebuggingLogger:
     def __init__(self, run_mode):
-        self.dbgpath = Path("C:/Users/vlondagi/source/repos/SCREEN_Oper_Grid/Script_Output/Debugging")
+        self.dbgpath = DEBUG_PATHS.get("debug_path", "")
         self.run_mode = run_mode
         self.print_log = self.check_run_mode(self.print_log)
         self.log_df = self.check_run_mode(self.log_df)
         self.log_file = self.dbgpath / "Log_File.txt"
+        self.check_or_build_debug_paths(self)
 
         if not self.log_file.is_file():
             with open(self.log_file, "a") as f:
@@ -299,6 +341,23 @@ class DebuggingLogger:
                 print(f"Logging {k}...")
                 v.to_csv(base_path.with_suffix(".csv"), index=False, index_label=None)
                 print(f"{k} saved")
+
+    @staticmethod
+    def check_or_build_debug_paths(self):
+        dbg_paths = DEBUG_PATHS.items()
+        print(f"Confirming Existence of Debugging Directories:")
+        for k, v in dbg_paths:
+            print(f"Checking Directory: {k}...")
+            if isinstance(v, str):
+                v = Path(v)
+            if v.exists():
+                print(f"Directory Exists")
+            else:
+                print(f"Directory Does Not Exist - Creating: {v}")
+                try:
+                    v.mkdir(parents=True, exist_ok=True)
+                except Exception as e:
+                    print(f"Unable to Create Directory - {e}")
 
 
 dbg = DebuggingLogger(run_mode=RUN_MODE)
