@@ -1,3 +1,5 @@
+from turtle import back
+
 import PyUber
 import pandas as pd
 import numpy as np
@@ -5,6 +7,9 @@ import os
 import re
 import sys
 import warnings
+import functools
+import random
+import time
 from pandas.errors import EmptyDataError
 from pandas.io.formats.style import Styler
 from datetime import datetime
@@ -37,10 +42,8 @@ if RUN_BATCH:
 else:
     if len(sys.argv) > 1:
         module_selection = sys.argv[1]
-        print(f"Setting Module Selection: {module_selection}")
     else:
-        module_selection = "XST"
-        print(f"Setting Default Module Selection: {module_selection}")
+        module_selection = "BUR"
 
 TOOLSET_SELECTION = ["BUR", "KNST", "XST", "XRT"]
 
@@ -250,7 +253,6 @@ def initialize_module(module_name: str):
     global am_model_map, ceid_list, entity_prefix_map, entity_prefixes
 
     module_selection = module_name
-    print(f"Setting Module Selection: {module_selection}")
 
     toolset = Toolset(module_selection)
     toolset.get_model_map()
@@ -279,6 +281,51 @@ def initialize_module(module_name: str):
 
 
 initialize_module(module_selection)
+
+
+def retry_with_exponential_backoff(max_retries: int = 5, initial_delay: int = 5, backoff_factor: int = 2, jitter: bool = False):
+    """
+    Decorator that allows a function to retry with exponential backoff.
+    Will retry max_retries times with an initial retry wait time of initial_delay.
+    Each subsequent attempt will take backoff_factor *= wait_time seconds to complete.
+    If jitter is enabled, the wait_time will vary randomly (max = current backoff limit)
+
+    Args:
+        max_retries (int, Optional, Default = 5): Maximum Number of Retries to complete
+        initial_delay (int, Optional, Default = 5): Number of seconds for initial wait time
+        backoff_factor (int, Optional, Default = 2): Multiplication factor for wait_seconds between retries
+        jitter (bool, Optional, False): Boolean to allow jitter in the wait time
+
+    Returns:
+        retry (func): Returns the decorated function
+    """
+
+    def retry(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            wait_seconds = initial_delay
+
+            for attempt in range(1, max_retries + 1):
+                try:
+                    return func(*args, **kwargs)
+                except Exception as e:
+                    if attempt == max_retries:
+                        print(f"Attempt {attempt} Failed. Max Retries Reached. Raising Error.")
+                        raise e
+                    else:
+                        if jitter:
+                            sleep_time = random.uniform(0, wait_seconds)
+                            print(f"Attempt {attempt} failed: {e}. Retrying in {sleep_time:.2f} seconds...")
+                            time.sleep(sleep_time)
+                            wait_seconds *= backoff_factor
+                        else:
+                            print(f"Attempt {attempt} failed: {e}. Retrying in {wait_seconds} seconds...")
+                            time.sleep(wait_seconds)
+                            wait_seconds *= backoff_factor
+
+        return wrapper
+
+    return retry
 
 
 def get_all_keys(nested_dict):
@@ -847,7 +894,7 @@ def create_oper_dict(setup_df: pd.DataFrame, lot_hist_df: pd.DataFrame) -> dict:
     for ceid in ceid_list:
         ceid_oper[ceid] = find_oper_list(ceid)
 
-        print(f"CEID: {ceid_oper[ceid]}")
+        print(f"Toolset {ceid}: {ceid_oper[ceid]}")
 
     return ceid_oper
 
@@ -1308,6 +1355,7 @@ legend_table = f"""
 """
 
 
+@retry_with_exponential_backoff(max_retries=5, initial_delay=5, backoff_factor=2, jitter=True)
 def write_html_output(link_dict, custom_css, searchable=True, **kwargs):
     nav_links = build_nav_links(link_dict)
     oper_grid_diffs_link = link_dict["oper_grid_diffs_href"]
@@ -1406,6 +1454,7 @@ def write_html_output(link_dict, custom_css, searchable=True, **kwargs):
         report.write(html_text)
 
 
+@retry_with_exponential_backoff(max_retries=5, initial_delay=5, backoff_factor=2, jitter=True)
 def write_email_html_output(link_dict, custom_css, **kwargs):
     nav_links = build_nav_links(link_dict)
     filename = kwargs.get("file_name", "DEFAULT")
@@ -1463,6 +1512,7 @@ def write_email_html_output(link_dict, custom_css, **kwargs):
         report.write(html_text)
 
 
+@retry_with_exponential_backoff(max_retries=5, initial_delay=5, backoff_factor=2, jitter=True)
 def write_diffs_html_output(link_dict, custom_css, searchable=True, **kwargs):
     nav_links = build_nav_links(link_dict)
     filename = kwargs.get("file_name", "DEFAULT")
@@ -1564,6 +1614,7 @@ def write_diffs_html_output(link_dict, custom_css, searchable=True, **kwargs):
         report.write(html_text)
 
 
+@retry_with_exponential_backoff(max_retries=5, initial_delay=5, backoff_factor=2, jitter=True)
 def write_lines_down_html_output(link_dict, custom_css, searchable=True, **kwargs):
     nav_links = build_nav_links(link_dict)
     filename = kwargs.get("file_name", "DEFAULT")
@@ -2190,5 +2241,6 @@ if __name__ == '__main__':
     if RUN_BATCH:
         run_batch()
     else:
+        print(f"Setting Module Selection: {module_selection}")
         initialize_module(module_selection)
         main()
