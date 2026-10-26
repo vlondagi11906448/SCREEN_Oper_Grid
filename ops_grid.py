@@ -10,6 +10,7 @@ import warnings
 import functools
 import random
 import time
+import future
 from pandas.errors import EmptyDataError
 from pandas.io.formats.style import Styler
 from datetime import datetime
@@ -27,6 +28,7 @@ To run the program,
 pd.set_option('display.max_columns', None)
 pd.set_option('display.max_colwidth', None)
 pd.set_option('display.max_rows', None)
+pd.set_option('future.no_silent_downcasting', True)
 pd.options.display.width = 0
 
 # suppress warnings from SQL queries
@@ -51,7 +53,7 @@ else:
     if len(sys.argv) > 1:
         module_selection = sys.argv[1]
     else:
-        module_selection = "XST"
+        module_selection = "HOT"
 
 TOOLSET_SELECTION = ["BUR", "KNST", "XST", "XRT", "HOT"]
 
