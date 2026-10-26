@@ -15,6 +15,14 @@ from pandas.io.formats.style import Styler
 from datetime import datetime
 from pathlib import Path
 
+"""
+INSTRUCTIONS: 
+
+To run the program, 
+
+"""
+
+
 # Set Display Options for Pandas
 pd.set_option('display.max_columns', None)
 pd.set_option('display.max_colwidth', None)
@@ -31,7 +39,7 @@ RUN_MODE = "PROD"
 
 # Toggle batch execution across multiple toolsets
 RUN_BATCH = False
-BATCH_MODULE_SELECTIONS = ["BUR", "KNST", "XST", "XRT"]
+BATCH_MODULE_SELECTIONS = ["BUR", "KNST", "XST", "XRT", "HOT"]
 
 # To run OperGrid for a different module, change the module selection below in the else block.
 # Must be one of the toolset labels configured in the TOOLSET_SELECTION variable
@@ -43,9 +51,11 @@ else:
     if len(sys.argv) > 1:
         module_selection = sys.argv[1]
     else:
-        module_selection = "BUR"
+        module_selection = "XST"
 
-TOOLSET_SELECTION = ["BUR", "KNST", "XST", "XRT"]
+TOOLSET_SELECTION = ["BUR", "KNST", "XST", "XRT", "HOT"]
+
+IGNORE_TOOL_STATES = ["Bagged", "WarmDown"]
 
 COMMON_WEB_PATHS = {
     "bootstrap_css": "https://azshweb.intel.com/AZAnalysis$/1274_MAODATA/Config/wet_etch/KNST/configs/Bootstrap/bootstrap5_dist/css/bootstrap.min.css",
@@ -75,7 +85,25 @@ TOOLSET_CONFIG = {
             "output_dir": Path("//azshfs.intel.com/AZAnalysis$/1278_MAODATA/Wet_Etch/BUR/Script_Output/xRT_BUR_Oper_Grid"),
             "html_output_dir": Path("//azshfs.intel.com/AZAnalysis$/1278_MAODATA/Wet_Etch/BUR/Script_Output/xRT_BUR_Oper_Grid/Output_HTML"),
             "html_out_file": r"https://azshweb.intel.com/AZAnalysis$/1278_MAODATA/Wet_Etch/BUR/Script_Output/xRT_BUR_Oper_Grid/Output_HTML/"
-        }
+        },
+        "tool_exclusions": []
+    },
+    "HOT": {
+        "min_chamber_check": 2,
+        "attributes": ["AdhocMon90", "MOQRestrict"],
+        "recipe_col": "recipe_name",
+        "model_map": {
+            "HOT": "HOT_F3"
+        },
+        "lot_hist_filter": {
+            "HOT": False,
+        },
+        "prod_paths": {
+            "output_dir": Path("//AZSHFS.intel.com/AZAnalysis$/1274_MAODATA/wet_etch/HOT/Script Output/OperGrid"),
+            "html_output_dir": Path("//AZSHFS.intel.com/AZAnalysis$/1274_MAODATA/wet_etch/HOT/Script Output/OperGrid/Output_HTML"),
+            "html_out_file": r"https://azshweb.intel.com/AZAnalysis$/1274_MAODATA/wet_etch/HOT/Script%20Output/OperGrid/Output_HTML/"
+        },
+        "tool_exclusions": []
     },
     "KNST": {
         "min_chamber_check": 6,
@@ -96,8 +124,9 @@ TOOLSET_CONFIG = {
         "prod_paths": {
             "output_dir": Path("//AZSHFS.intel.com/AZAnalysis$/1274_MAODATA/wet_etch/KNST/Script Output/OperGrid"),
             "html_output_dir": Path("//AZSHFS.intel.com/AZAnalysis$/1274_MAODATA/wet_etch/KNST/Script Output/OperGrid/Output_HTML"),
-            "html_out_file": r"https://azshweb.intel.com/AZAnalysis$/1274_MAODATA/wet_etch/KNST/Script Output/OperGrid/Output_HTML/"
-        }
+            "html_out_file": r"https://azshweb.intel.com/AZAnalysis$/1274_MAODATA/wet_etch/KNST/Script%20Output/OperGrid/Output_HTML/"
+        },
+        "tool_exclusions": []
     },
     "XST": {
         "min_chamber_check": 2,
@@ -118,8 +147,9 @@ TOOLSET_CONFIG = {
         "prod_paths": {
             "output_dir": Path("//AZSHFS.intel.com/AZAnalysis$/1274_MAODATA/wet_etch/EST_SST/Script Output/OperGrid"),
             "html_output_dir": Path("//AZSHFS.intel.com/AZAnalysis$/1274_MAODATA/wet_etch/EST_SST/Script Output/OperGrid/Output_HTML"),
-            "html_out_file": r"https://azshweb.intel.com/AZAnalysis$/1274_MAODATA/wet_etch/EST_SST/Script Output/OperGrid/Output_HTML/"
-        }
+            "html_out_file": r"https://azshweb.intel.com/AZAnalysis$/1274_MAODATA/wet_etch/EST_SST/Script%20Output/OperGrid/Output_HTML/"
+        },
+        "tool_exclusions": []
     },
     "XRT": {
         "min_chamber_check": 4,
@@ -141,7 +171,8 @@ TOOLSET_CONFIG = {
             "output_dir": Path("//azshfs.intel.com/AZAnalysis$/1278_MAODATA/Wet_Etch/BUR/Script_Output/xRT_BUR_Oper_Grid"),
             "html_output_dir": Path("//azshfs.intel.com/AZAnalysis$/1278_MAODATA/Wet_Etch/BUR/Script_Output/xRT_BUR_Oper_Grid/Output_HTML"),
             "html_out_file": r"https://azshweb.intel.com/AZAnalysis$/1278_MAODATA/Wet_Etch/BUR/Script_Output/xRT_BUR_Oper_Grid/Output_HTML/"
-        }
+        },
+        "tool_exclusions": []
     }
 }
 
@@ -153,6 +184,7 @@ class Toolset:
         self.model_map = {}
         self.path_variables = {}
         self.lot_hist_filter = {}
+        self.tool_exclusions = []
         config = TOOLSET_CONFIG.get(self.toolset, {})
         self.min_chamber_check = config.get("min_chamber_check", 6)
         self.attributes = config.get("attributes", ["AdhocMon90", "MOQRestrict"])
@@ -179,6 +211,31 @@ class Toolset:
             print(f"Invalid Toolset: {self.toolset} not in {self.toolset_selection}")
         else:
             self.lot_hist_filter = dict(TOOLSET_CONFIG.get(self.toolset, {}).get("lot_hist_filter", {}))
+
+    def get_tool_exclusions(self):
+        self.tool_exclusions = TOOLSET_CONFIG.get(self.toolset, {}).get("tool_exclusions")
+        print(f"Tool Exclude List for {self.toolset}: {self.tool_exclusions}")
+
+    def check_dirs(self):
+        print("Checking directory existence for output_dir and html_output_dir...")
+
+        output_path = self.path_variables.get("output_dir")
+        html_output_path = self.path_variables.get("html_output_dir")
+
+        for dir_label, dir_path in [("output_dir", output_path), ("html_output_dir", html_output_path)]:
+            if not dir_path:
+                print(f"{dir_label} path is not configured.")
+                continue
+
+            dir_path = Path(dir_path)
+            print(f"Checking {dir_label}: {dir_path}")
+
+            if dir_path.exists():
+                print(f"{dir_label} exists.")
+            else:
+                print(f"{dir_label} does not exist.")
+                dir_path.mkdir(parents=True, exist_ok=True)
+                print(f"{dir_label} directory created.")
 
 
 class DebuggingLogger:
@@ -258,6 +315,8 @@ def initialize_module(module_name: str):
     toolset.get_model_map()
     toolset.get_path_variables()
     toolset.get_lot_hist_filter()
+    toolset.get_tool_exclusions()
+    toolset.check_dirs()
 
     output_dir = toolset.path_variables.get("output_dir", "")
     html_output_dir = toolset.path_variables.get("html_output_dir", "")
@@ -393,7 +452,6 @@ def query_db(db_num: int) -> pd.DataFrame:
     conn = PyUber.connect('F32_PROD_XEUS')
     if db_num == 1:
         conditions = [f"am8.modelname LIKE '{value}'" for value in am_model_map.values()]
-        # ({'\n OR '.join(conditions)})
         sql1 = f"""
                 SELECT 
                     am8.am_ldr_path AS am_ldr_path
@@ -577,6 +635,7 @@ def query_db(db_num: int) -> pd.DataFrame:
                 ,e.configured_processes AS configured_processes
                 ,e.state AS state
                 ,e.availability AS availability
+                ,e.functional_area AS functional_area
         FROM 
         F_ENTITY e
         WHERE
@@ -585,6 +644,7 @@ def query_db(db_num: int) -> pd.DataFrame:
         AND      ({'\n OR '.join(conditions)})
         AND      e.entity Not Like '%LP%' 
         AND      e.entity Not Like '%WPO%' 
+        AND      e.functional_area Like '%Wet%'
         )
         """
         df = pd.read_sql(sql6, conn)
@@ -819,8 +879,10 @@ def create_tool_dict(entry_df: pd.DataFrame, ent_stat_df: pd.DataFrame) -> dict:
         unbagged_tools = []
         for tool in ceid_tools[ceid]:
             if_not_in_ent_stat = (tool not in ent_stat_df['PARENT_ENTITY'].values)
-            if_bagged = 'Bagged' in (ent_stat_df['STATE'].loc[(ent_stat_df['SUBENTITY'] == 'Parent') &
+            check_ent_state_str = (ent_stat_df['STATE'].loc[(ent_stat_df['SUBENTITY'] == 'Parent') &
                                                               (ent_stat_df['PARENT_ENTITY'] == tool)].to_string())
+            if_bagged = any(state in check_ent_state_str for state in IGNORE_TOOL_STATES)
+
             if not ((if_not_in_ent_stat) or (if_bagged)): unbagged_tools.append(tool)
 
         # keep table headers populated even when runtime status marks all tools as bagged
@@ -1860,6 +1922,7 @@ def main():
         out_df.insert(0, 'Operation', out_df.index)
         out_df.sort_values(['Paths Open', 'Operation'], inplace=True)
         out_df.reset_index(drop=True, inplace=True)
+        out_df = out_df.drop(columns=toolset.tool_exclusions, errors='ignore')
 
         return out_df
 
