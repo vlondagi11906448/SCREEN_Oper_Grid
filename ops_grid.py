@@ -92,7 +92,7 @@ else:
     if len(sys.argv) > 1:
         module_selection = sys.argv[1]
     else:
-        module_selection = "HOT"
+        module_selection = "XST"
 
 TOOLSET_SELECTION = ["BUR", "KNST", "XST", "XRT", "HOT"]
 
@@ -179,7 +179,7 @@ TOOLSET_CONFIG = {
             "SST": "SST_F3",
             "EST": "EST_F3",
             "GST": "GST_F3_SCNET",
-            "EST53": "EST_F3_SCNET_NSD"
+            "EST53": "EST_F3_SCNET_NSD",
         },
         "lot_hist_filter": {
             "SST": True,
@@ -396,7 +396,17 @@ def initialize_module(module_name: str):
 
     am_model_map = toolset.model_map
     ceid_list = [k for k in am_model_map.keys()]
-    entity_prefix_map = {ceid: re.match(r'[A-Z]+', ceid).group(0) for ceid in ceid_list}
+    entity_prefix_map = {}
+    for ceid in ceid_list:
+        model_pattern = str(am_model_map.get(ceid, ""))
+        model_prefix_match = re.match(r'[A-Z]+', model_pattern)
+        ceid_prefix_match = re.match(r'[A-Z]+', ceid)
+        if model_prefix_match:
+            entity_prefix_map[ceid] = model_prefix_match.group(0)
+        elif ceid_prefix_match:
+            entity_prefix_map[ceid] = ceid_prefix_match.group(0)
+        else:
+            entity_prefix_map[ceid] = ceid
     entity_prefixes = sorted(set(entity_prefix_map.values()))
 
 
@@ -489,6 +499,19 @@ def map_model(ceid: str, model_ceid_map: dict = None) -> str:
 
     active_model_map = am_model_map if model_ceid_map is None else model_ceid_map
     return active_model_map[ceid]
+
+
+def model_matches(model_name: str, model_pattern: str) -> bool:
+    """Return True when model_name matches model_pattern using SQL-like wildcards.
+
+    Supports '%' as multi-char wildcard and '_' as single-char wildcard.
+    """
+    pattern = str(model_pattern)
+    if ('%' not in pattern) and ('_' not in pattern):
+        return str(model_name) == pattern
+
+    regex_pattern = re.escape(pattern).replace(r'\%', '.*').replace(r'\_', '.')
+    return re.fullmatch(regex_pattern, str(model_name)) is not None
 
 
 def query_db(db_num: int) -> pd.DataFrame:
@@ -728,6 +751,7 @@ def query_db(db_num: int) -> pd.DataFrame:
         AND      eo.entity Not Like '%LP%' 
         AND      eo.entity Not Like '%MPC%'
         AND      eo.entity Not Like '%SPIN%'
+        AND      eo.entity Not Like '%U%'
         """
         df = pd.read_sql(sql7, conn)
         dbg.log_df(df=df, df_name="DF7_From_Query")
@@ -819,7 +843,9 @@ def create_route_dict(df: pd.DataFrame) -> dict:
             dict: Stores a set of operations for a given route
         """
         route_dict = {}
-        new_df = df[(df['MODELNAME'] == map_model(ceid)) & (df['ROUTE'] != '*')]
+        model_pattern = map_model(ceid)
+        model_mask = df['MODELNAME'].astype(str).apply(lambda x: model_matches(x, model_pattern))
+        new_df = df[model_mask & (df['ROUTE'] != '*')]
         for route in {el for list_ in new_df['ROUTE'].str.split('|') for el in list_}:
             test = set(new_df.loc[new_df['ROUTE'].str.contains(route, regex=False)]['OPERATION'].values)
             route_dict.setdefault(route, test)
@@ -854,7 +880,9 @@ def create_ct_file_dict(df: pd.DataFrame) -> dict:
             dict: Stores a set of operations for a given ct_file
         """
         ct_file_dict = {}
-        new_df = df.loc[df['MODELNAME'] == map_model(ceid)]
+        model_pattern = map_model(ceid)
+        model_mask = df['MODELNAME'].astype(str).apply(lambda x: model_matches(x, model_pattern))
+        new_df = df.loc[model_mask]
         for ct_file in new_df['CT_FILE'].values:
             # if ct_file == 'ct_nocab': continue
             if ct_file == 'ct_k':
@@ -905,7 +933,9 @@ def create_tool_dict(entry_df: pd.DataFrame, ent_stat_df: pd.DataFrame) -> dict:
         # if "*" in entity_string:
         #     entity_string = "|".join(ent_stat_df["PARENT_ENTITY"].unique())
 
-        if entry_df['MODEL_NAME'].loc[entry_df['ENTITY'] == entity_string].iloc[0] == map_model(ceid):
+        model_pattern = map_model(ceid)
+        model_values = entry_df['MODEL_NAME'].loc[entry_df['ENTITY'] == entity_string]
+        if any(model_matches(model_value, model_pattern) for model_value in model_values):
             ceid_tools[ceid].extend(entities)
 
 
@@ -982,21 +1012,25 @@ def create_oper_dict(setup_df: pd.DataFrame, lot_hist_df: pd.DataFrame) -> dict:
         oper_list = {}
         # slice setup_df with relevant info and tools
         new_df_cols = ['ROW_ORDER', 'ENTITY', 'PRODUCT', 'ROUTE', 'OPERATION', 'RECIPE_NAME', 'CT_FILE']
-        new_df = setup_df.loc[(setup_df['MODELNAME'] == map_model(ceid)), new_df_cols]
+        model_pattern = map_model(ceid)
+        model_mask = setup_df['MODELNAME'].astype(str).apply(lambda x: model_matches(x, model_pattern))
+        new_df = setup_df.loc[model_mask, new_df_cols]
         for idx in range(new_df.shape[0]):
             oper = new_df['OPERATION'].iloc[idx]
             rec = new_df['RECIPE_NAME'].iloc[idx]
             ct_file = new_df['CT_FILE'].iloc[idx]
             route = new_df['ROUTE'].iloc[idx]
             prod = new_df['PRODUCT'].iloc[idx]
+            route_str = str(route)
+            include_route = (route_str == '*') or ('*53.*' in route_str)
 
             # include AMCT defaults; do not limit to only recent lot history
             filt_lot_hist = toolset.lot_hist_filter.get(ceid, True)
             if filt_lot_hist:
-                if (oper not in lot_hist_df['OPERATION'].values) or (route != '*') or (prod != '*'):
+                if (oper not in lot_hist_df['OPERATION'].values) or (not include_route) or (prod != '*'):
                     continue
             else:
-                if (route != '*') or (prod != '*'):
+                if (not include_route) or (prod != '*'):
                     continue
 
             oper_list.setdefault(oper, (rec, ct_file, route, prod))
@@ -1073,8 +1107,9 @@ def check_tool_filter(oper: str, entity: str, tf_df: pd.DataFrame, ceid: str, ce
     final_status = ''
     if tf_rules is None:
         mapped_model = map_model(ceid)
+        model_mask = tf_df['MODEL_NAME'].astype(str).apply(lambda x: model_matches(x, mapped_model))
         new_df = tf_df.loc[
-            tf_df['MODEL_NAME'] == mapped_model, ['ROW_ORDER', 'OPERATION', 'ROUTE', 'ENTITY', 'LAYER', 'TOOL_ALLOWED']]
+            model_mask, ['ROW_ORDER', 'OPERATION', 'ROUTE', 'ENTITY', 'LAYER', 'TOOL_ALLOWED']]
         new_df["LAYER"] = new_df["LAYER"].fillna("*")
     else:
         new_df = tf_rules
@@ -1904,8 +1939,9 @@ def main():
         tf_rules_by_ceid = {}
         for ceid in ceid_tools.keys():
             mapped_model = map_model(ceid)
+            model_mask = df4['MODEL_NAME'].astype(str).apply(lambda x: model_matches(x, mapped_model))
             tf_rules = df4.loc[
-                df4['MODEL_NAME'] == mapped_model,
+                model_mask,
                 ['ROW_ORDER', 'OPERATION', 'ROUTE', 'ENTITY', 'LAYER', 'TOOL_ALLOWED']
             ].copy()
             tf_rules['LAYER'] = tf_rules['LAYER'].fillna('*')
@@ -2281,7 +2317,7 @@ def main():
 
     for k, v in report_config_dict.items():
         diff_table = report_config_dict[k]["diff_report"]
-        DIFFS_DICT[f"{k.lower()}_table"] = diff_table
+        DIFFS_DICT[f"{k}_table"] = diff_table
 
     LINES_DOWN_DICT = {
         "file_name": f"{module_selection}_Lines_Down_Operations",
@@ -2302,10 +2338,10 @@ def main():
         diffs_df = report_config_dict[k]["diffs"]
 
         if len(diffs_df) != 0:
-            DIFFS_DICT[f"{k.lower()}_table_head"] = f"{k} Oper Grid Deltas:"
-            DIFFS_DICT["table_ids"].append(f"{k.lower()}_diffs")
+            DIFFS_DICT[f"{k}_table_head"] = f"{k} Oper Grid Deltas:"
+            DIFFS_DICT["table_ids"].append(f"{k}_diffs")
         else:
-            DIFFS_DICT[f"{k.lower()}_table"] = ""
+            DIFFS_DICT[f"{k}_table"] = ""
 
     # Update LINES DOWN DICT if LD DF's are Empty
     for k, v in report_config_dict.items():
