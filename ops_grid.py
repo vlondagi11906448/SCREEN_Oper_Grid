@@ -92,7 +92,7 @@ else:
     if len(sys.argv) > 1:
         module_selection = sys.argv[1]
     else:
-        module_selection = "XST"
+        module_selection = "KNST"
 
 TOOLSET_SELECTION = ["BUR", "KNST", "XST", "XRT", "HOT"]
 
@@ -502,16 +502,30 @@ def map_model(ceid: str, model_ceid_map: dict = None) -> str:
 
 
 def model_matches(model_name: str, model_pattern: str) -> bool:
-    """Return True when model_name matches model_pattern using SQL-like wildcards.
+    """Return True when model_name matches model_pattern.
 
-    Supports '%' as multi-char wildcard and '_' as single-char wildcard.
+    Supports '%' as multi-char wildcard. Underscores are treated as literal
+    characters because AM model names commonly include '_' in exact names.
     """
     pattern = str(model_pattern)
-    if ('%' not in pattern) and ('_' not in pattern):
+    if '%' not in pattern:
         return str(model_name) == pattern
 
-    regex_pattern = re.escape(pattern).replace(r'\%', '.*').replace(r'\_', '.')
+    regex_pattern = re.escape(pattern).replace(r'\%', '.*')
     return re.fullmatch(regex_pattern, str(model_name)) is not None
+
+
+def normalize_operation(value) -> str:
+    """Normalize operation values for reliable comparisons across data sources."""
+    token = str(value).strip()
+    if token.lower() == 'nan':
+        return ''
+    token = re.sub(r'_(\d+)$', '', token)
+    if re.fullmatch(r'\d+', token):
+        return str(int(token))
+    if re.fullmatch(r'\d+\.0+', token):
+        return token.split('.')[0]
+    return token
 
 
 def query_db(db_num: int) -> pd.DataFrame:
@@ -734,7 +748,7 @@ def query_db(db_num: int) -> pd.DataFrame:
         df = pd.read_sql(sql6, conn)
         dbg.log_df(df=df, df_name="DF6_From_Query")
     elif db_num == 7:
-        conditions = [f"e.entity LIKE '{value}%'" for value in entity_prefixes]
+        conditions = [f"eo.entity LIKE '{value}%'" for value in entity_prefixes]
         sql7 = f"""
             SELECT 
                 eo.facility AS facility
@@ -745,13 +759,12 @@ def query_db(db_num: int) -> pd.DataFrame:
                 ,eo.latest_flag AS entity_oper_latest_flag
         FROM 
         F_EntityOper eo
-        LEFT JOIN F_Entity e ON e.entity = eo.entity AND e.facility = eo.facility
+        LEFT JOIN F_Entity e ON e.entity = eo.entity AND e.entity_deleted_flag = 'N'
         WHERE    ({'\n OR '.join(conditions)})
         AND      eo.latest_flag = 'Y' 
         AND      eo.entity Not Like '%LP%' 
         AND      eo.entity Not Like '%MPC%'
         AND      eo.entity Not Like '%SPIN%'
-        AND      eo.entity Not Like '%U%'
         """
         df = pd.read_sql(sql7, conn)
         dbg.log_df(df=df, df_name="DF7_From_Query")
@@ -1070,15 +1083,21 @@ def check_ops_to_ent(oper: str, entity: str, ops_ent_df: pd.DataFrame, cc_df: pd
     Returns:
         str: Empty if passed, O if not passed
     """
-    oper = str(oper).strip().split("_")[0]
+    oper_raw = str(oper).strip()
+    oper = normalize_operation(oper_raw)
     entity = str(entity).strip()
 
     if parent_assoc_set is not None:
-        return '' if (oper, entity) in parent_assoc_set else "O"
+        if (oper_raw, entity) in parent_assoc_set or (oper, entity) in parent_assoc_set:
+            return ''
+        return "O"
 
     # valid association only when parent entity itself is explicitly associated to the operation
     parent_assoc = ops_ent_df[
-        (ops_ent_df['OPERATION'].astype(str).str.strip().split("_")[0] == oper)
+        (
+            (ops_ent_df['OPERATION'].astype(str).str.strip() == oper_raw)
+            | (ops_ent_df['OPERATION'].apply(normalize_operation) == oper)
+        )
         & (ops_ent_df['PARENT_ENTITY'].astype(str).str.strip() == entity)
         & (ops_ent_df['ENTITY'].astype(str).str.strip() == entity)
     ]
@@ -1930,11 +1949,16 @@ def main():
             dict: Nested dict in format: {ceid : {op : {entity : status}}}
         """
         # precompute lookup structures to avoid repeating expensive DataFrame scans per op/tool pair
-        parent_assoc_set = {
-            (str(op).strip(), str(parent).strip())
-            for op, parent, ent in zip(df7['OPERATION'], df7['PARENT_ENTITY'], df7['ENTITY'])
-            if str(parent).strip() == str(ent).strip()
-        }
+        parent_assoc_set = set()
+        for op, parent, ent in zip(df7['OPERATION'], df7['PARENT_ENTITY'], df7['ENTITY']):
+            parent_value = str(parent).strip()
+            entity_value = str(ent).strip()
+            if parent_value != entity_value:
+                continue
+            op_raw = str(op).strip()
+            op_norm = normalize_operation(op_raw)
+            parent_assoc_set.add((op_raw, parent_value))
+            parent_assoc_set.add((op_norm, parent_value))
 
         tf_rules_by_ceid = {}
         for ceid in ceid_tools.keys():
