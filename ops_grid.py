@@ -9,6 +9,7 @@ import functools
 import random
 import time
 import future
+import urllib.request
 from pandas.errors import EmptyDataError
 from pandas.io.formats.style import Styler
 from datetime import datetime
@@ -74,7 +75,38 @@ pd.options.display.width = 0
 # suppress warnings from SQL queries
 warnings.simplefilter(action='ignore', category=UserWarning)
 
-# RUN_MODE = DEBUG or PROD - Determines if this is being used for debugging / development and provides
+# Current script version - used by the update checker to detect new deployments
+VERSION = "1.0.0"
+
+# Toggle the GitHub update checker. When enabled, a newer VERSION found on the repo
+# will be deployed to each module destination configured in UPDATE_DEPLOY_CONFIGS.
+RUN_UPDATE_CHECK = True
+UPDATE_SOURCE_URL = "https://raw.githubusercontent.com/vlondagi11906448/SCREEN_Oper_Grid/main/ops_grid.py"
+
+UPDATE_DEPLOY_CONFIGS = {
+    "BUR": {
+        "dest": Path("//azshfs.intel.com/AZAnalysis$/1278_MAODATA/Config/Wet_Etch/BUR/Configs/xRT_BUR_Oper_Grid"),
+        "fname": "bur_oper_grid.py"
+    },
+    "HOT": {
+        "dest": Path("//AZSHFS.intel.com/AZAnalysis$/1274_MAODATA/Config/wet_etch/HOT/configs/OperGrid"),
+        "fname": "ops_grid.py"
+    },
+    "KNST": {
+        "dest": Path("//AZSHFS.intel.com/AZAnalysis$/1274_MAODATA/Config/wet_etch/KNST/configs/OperGrid"),
+        "fname": "ops_grid.py"
+    },
+    "XST": {
+        "dest": Path("//AZSHFS.intel.com/AZAnalysis$/1274_MAODATA/Config/wet_etch/EST_SST/configs/OperGrid"),
+        "fname": "xst_oper_grid.py"
+    },
+    "XRT": {
+        "dest": Path("//azshfs.intel.com/AZAnalysis$/1278_MAODATA/Config/Wet_Etch/BUR/Configs/xRT_BUR_Oper_Grid"),
+        "fname": "xrt_oper_grid.py"
+    }
+}
+
+# RUN_MODE = DEBUG or PROD
 # additional debugging logs
 RUN_MODE = "PROD"
 # RUN_MODE = "DEBUG"
@@ -2421,7 +2453,88 @@ def run_batch(modules: list = None):
         print(f"===== Completed batch run for {module_name} =====\n")
 
 
+def parse_version(version_str: str) -> tuple:
+    """Parse a version string like '1.2.3' into a comparable tuple of ints."""
+    try:
+        return tuple(int(part) for part in str(version_str).strip().split('.'))
+    except ValueError:
+        return (0,)
+
+
+def get_remote_script() -> str:
+    """Download the latest script source from the GitHub repo. Returns the file content as a string."""
+    with urllib.request.urlopen(UPDATE_SOURCE_URL, timeout=30) as response:
+        return response.read().decode("utf-8")
+
+
+def get_script_version(script_text: str) -> str:
+    """Extract the VERSION constant from script text. Returns '0.0.0' if not found."""
+    match = re.search(r'^VERSION\s*=\s*["\']([^"\']+)["\']', script_text, flags=re.MULTILINE)
+    return match.group(1) if match else "0.0.0"
+
+
+def set_default_module_selection(script_text: str, module_name: str) -> str:
+    """Rewrite the default module selection (the else-block fallback) to the given module."""
+    return re.sub(
+        r'(\n    else:\n        module_selection = )"[A-Za-z0-9_]+"',
+        rf'\g<1>"{module_name}"',
+        script_text,
+        count=1
+    )
+
+
+@retry_with_exponential_backoff(max_retries=3, initial_delay=5, backoff_factor=2, jitter=True)
+def deploy_script(script_text: str, dest: Path, fname: str):
+    """Write the script text to the destination directory with the configured file name."""
+    dest = Path(dest)
+    dest.mkdir(parents=True, exist_ok=True)
+    out_file = dest / fname
+    with open(out_file, "w", encoding="utf-8") as f:
+        f.write(script_text)
+    print(f"Deployed update to {out_file}")
+
+
+def check_for_updates(deploy_configs: dict = None):
+    """Check GitHub for a newer version of this script and deploy it to each module share.
+
+    For each configured module, the default module selection in the deployed file is
+    rewritten to that module before writing to its destination/file name.
+    """
+    deploy_configs = deploy_configs if deploy_configs is not None else UPDATE_DEPLOY_CONFIGS
+
+    print(f"Checking for updates... Local version: {VERSION}")
+    try:
+        remote_script = get_remote_script()
+    except Exception as e:
+        print(f"Update check failed - unable to reach repo: {e}")
+        return False
+
+    remote_version = get_script_version(remote_script)
+    print(f"Remote version: {remote_version}")
+
+    if parse_version(remote_version) <= parse_version(VERSION):
+        print("No new version detected. Skipping deployment.")
+        return False
+
+    print(f"New version {remote_version} detected. Deploying to configured modules...")
+    for module_name, config in deploy_configs.items():
+        if module_name not in TOOLSET_SELECTION:
+            print(f"Skipping deployment for unconfigured module: {module_name}")
+            continue
+
+        module_script = set_default_module_selection(remote_script, module_name)
+        try:
+            deploy_script(module_script, config["dest"], config["fname"])
+        except Exception as e:
+            print(f"Deployment failed for {module_name}: {e}")
+
+    return True
+
+
 if __name__ == '__main__':
+    if RUN_UPDATE_CHECK:
+        check_for_updates()
+
     if RUN_BATCH:
         run_batch()
     else:
