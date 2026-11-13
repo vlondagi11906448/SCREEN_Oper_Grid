@@ -76,7 +76,7 @@ pd.options.display.width = 0
 warnings.simplefilter(action='ignore', category=UserWarning)
 
 # Current script version - used by the update checker to detect new deployments
-VERSION = "1.0.1"
+VERSION = "1.0.2"
 
 # Toggle the GitHub update checker. When enabled, a newer VERSION found on the repo
 # will be deployed to each module destination configured in UPDATE_DEPLOY_CONFIGS.
