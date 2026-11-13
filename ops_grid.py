@@ -2462,15 +2462,20 @@ def parse_version(version_str: str) -> tuple:
 
 
 def get_remote_script() -> str:
-    """Download the latest script source from the GitHub repo. Returns the file content as a string."""
+    """Download the latest script source from the GitHub repo. Returns the file content as a string.
+
+    Raises a RuntimeError if the server responds with a non-200 status.
+    """
     with urllib.request.urlopen(UPDATE_SOURCE_URL, timeout=30) as response:
+        if response.status != 200:
+            raise RuntimeError(f"Unexpected HTTP status {response.status} from {UPDATE_SOURCE_URL}")
         return response.read().decode("utf-8")
 
 
-def get_script_version(script_text: str) -> str:
-    """Extract the VERSION constant from script text. Returns '0.0.0' if not found."""
+def get_script_version(script_text: str):
+    """Extract the VERSION constant from script text. Returns None if not found."""
     match = re.search(r'^VERSION\s*=\s*["\']([^"\']+)["\']', script_text, flags=re.MULTILINE)
-    return match.group(1) if match else "0.0.0"
+    return match.group(1) if match else None
 
 
 def set_default_module_selection(script_text: str, module_name: str) -> str:
@@ -2510,6 +2515,11 @@ def check_for_updates(deploy_configs: dict = None):
         return False
 
     remote_version = get_script_version(remote_script)
+    if remote_version is None:
+        print("WARNING: Could not find a VERSION constant in the remote script. "
+              "Check that UPDATE_SOURCE_URL points to the correct repo/branch/file: "
+              f"{UPDATE_SOURCE_URL}")
+        return False
     print(f"Remote version: {remote_version}")
 
     if parse_version(remote_version) <= parse_version(VERSION):
